@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Super Gecko Slide: 30 Levels</title>
+    <style>
+        :root {
+            --bg-color: #212121;
+            --panel-color: #333;
+            --text-color: #eee;
+            --accent: #00e676;
+            --danger: #ff5252;
+        }
+        body {
+            margin: 0; overflow: hidden;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-family: 'Segoe UI', Roboto, sans-serif;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            height: 100vh; touch-action: none;
+        }
+        #ui-top {
+            width: 100%; max-width: 600px;
+            display: flex; justify-content: space-between;
+            padding: 10px 20px; box-sizing: border-box;
+            font-size: 20px; font-weight: bold;
+            text-shadow: 1px 1px 2px black;
+        }
+        #timer-bar-bg {
+            width: 100%; max-width: 600px; height: 6px;
+            background: #444; margin-bottom: 10px;
+            border-radius: 3px; overflow: hidden;
+        }
+        #timer-bar-fill {
+            height: 100%; width: 100%; background: var(--accent);
+            transition: width 0.2s linear;
+        }
+        canvas {
+            background-color: #263238;
+            border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.5);
+            max-width: 96vw; max-height: 80vh;
+        }
+        #modal {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            z-index: 20; display: none; text-align: center;
+        }
+        h1 { font-size: 2.5rem; color: var(--accent); margin: 0 0 10px 0; }
+        h2 { font-size: 1.5rem; color: #fff; margin: 0 0 20px 0; }
+        p { font-size: 1.1rem; color: #bbb; max-width: 400px; margin-bottom: 30px; line-height: 1.5;}
+        button {
+            padding: 15px 40px; font-size: 1.2rem;
+            background: linear-gradient(to bottom, #00e676, #00c853);
+            border: none; border-radius: 50px;
+            cursor: pointer; font-weight: bold; color: #003300;
+            box-shadow: 0 5px 15px rgba(0,230,118,0.4);
+            transition: transform 0.1s, box-shadow 0.1s;
+        }
+        button:active { transform: scale(0.95); box-shadow: 0 2px 5px rgba(0,230,118,0.4); }
+        .stars { font-size: 3rem; color: #ffd700; margin-bottom: 20px; letter-spacing: 5px; }
+        .mechanic-badge {
+            background: #444; color: #fff; padding: 5px 15px;
+            border-radius: 20px; font-size: 0.9rem; margin-top: 10px;
+            border: 1px solid #666;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="ui-top">
+        <div id="level-display">Level 1</div>
+        <div id="mechanic-display" style="font-size: 0.8em; color: #aaa;">Basic</div>
+    </div>
+    <div id="timer-bar-bg"><div id="timer-bar-fill"></div></div>
+
+    <canvas id="gameCanvas"></canvas>
+
+    <div id="modal">
+        <h1 id="modal-title">Super Gecko Slide</h1>
+        <h2 id="modal-sub"></h2>
+        <div class="stars" id="modal-stars"></div>
+        <p id="modal-msg">Drag geckos by Head or Tail to their matching holes.<br>Don't get tangled!</p>
+        <button id="modal-btn">Play</button>
+        <div id="new-mech-badge" class="mechanic-badge" style="display:none">New Mechanic!</div>
+    </div>
+
+<script>
+/**
+ * CONFIG & ASSETS
+ */
+const COLORS = {
+    red:    { main: '#FF5252', dark: '#C62828', hole: '#FFCDD2' },
+    green:  { main: '#69F0AE', dark: '#2E7D32', hole: '#C8E6C9' },
+    blue:   { main: '#448AFF', dark: '#1565C0', hole: '#BBDEFB' },
+    yellow: { main: '#FFD740', dark: '#FF8F00', hole: '#FFF9C4' },
+    purple: { main: '#E040FB', dark: '#7B1FA2', hole: '#E1BEE7' },
+    orange: { main: '#FFAB40', dark: '#EF6C00', hole: '#FFE0B2' },
+    wall:   '#546E7A',
+    empty:  '#263238',
+    lock:   '#37474F',
+    portal: '#00E5FF'
+};
+
+const IS_SAME = (a, b) => a.x === b.x && a.y === b.y;
+
+/**
+ * LEVEL DATA
+ */
+const mkGecko = (id, color, coords, target) => ({ id, color, segments: coords, target });
+
+const LEVELS = [
+    // --- 1-5: BASICS ---
+    {
+        id: 1, title: "First Steps", grid: 6, time: 30, msg: "Drag the head or tail.",
+        walls: [{x:3,y:2},{x:3,y:3}],
+        geckos: [ mkGecko(1, 'green', [{x:1,y:2},{x:0,y:2}], {x:5,y:2}) ]
+    },
+    {
+        id: 2, title: "The Crossing", grid: 6, time: 40, msg: "Geckos block each other.",
+        walls: [{x:2,y:0},{x:2,y:1},{x:2,y:4},{x:2,y:5}],
+        geckos: [
+            mkGecko(1, 'blue', [{x:1,y:3},{x:0,y:3}], {x:5,y:3}),
+            mkGecko(2, 'red', [{x:3,y:2},{x:3,y:3},{x:3,y:4}], {x:3,y:0})
+        ]
+    },
+    {
+        id: 3, title: "Reverse It", grid: 6, time: 45, msg: "Use the tail to back up!",
+        walls: [{x:3,y:3}],
+        geckos: [
+            mkGecko(1, 'yellow', [{x:3,y:2},{x:2,y:2},{x:2,y:3},{x:2,y:4}], {x:5,y:2}),
+            mkGecko(2, 'blue', [{x:4,y:4},{x:4,y:3},{x:4,y:2}], {x:0,y:4})
+        ]
+    },
+    {
+        id: 4, title: "Tight Squeeze", grid: 5, time: 40,
+        walls: [{x:2,y:2}],
+        geckos: [
+            mkGecko(1, 'red', [{x:0,y:0},{x:1,y:0},{x:2,y:0}], {x:4,y:4}),
+            mkGecko(2, 'green', [{x:4,y:0},{x:4,y:1},{x:4,y:2}], {x:0,y:4})
+        ]
+    },
+    {
+        id: 5, title: "Traffic Jam", grid: 6, time: 50,
+        walls: [],
+        geckos: [
+            mkGecko(1, 'red', [{x:1,y:2},{x:0,y:2}], {x:5,y:2}),
+            mkGecko(2, 'blue', [{x:2,y:1},{x:2,y:0}], {x:2,y:5}),
+            mkGecko(3, 'yellow', [{x:3,y:4},{x:3,y:5}], {x:3,y:0})
+        ]
+    },
+    // --- 6-10: LOCKS & KEYS ---
+    {
+        id: 6, title: "Locked Out", grid: 6, time: 45, mechanic: "Keys Open Locks",
+        walls: [{x:4,y:2},{x:4,y:3}],
+        locks: [{x:3,y:2, color:'red'}],
+        keys:  [{x:0,y:5, color:'red'}],
+        geckos: [ mkGecko(1, 'red', [{x:0,y:0},{x:0,y:1},{x:0,y:2}], {x:5,y:2}) ]
+    },
+    {
+        id: 7, title: "Key Exchange", grid: 6, time: 60,
+        locks: [{x:3,y:1, color:'blue'}, {x:2,y:4, color:'red'}],
+        keys: [{x:5,y:5, color:'blue'}, {x:0,y:0, color:'red'}],
+        geckos: [
+            mkGecko(1, 'red', [{x:1,y:1},{x:0,y:1}], {x:5,y:1}),
+            mkGecko(2, 'blue', [{x:4,y:4},{x:5,y:4}], {x:0,y:4})
+        ]
+    },
+    {
+        id: 8, title: "The Cell", grid: 5, time: 45,
+        walls: [{x:1,y:1},{x:3,y:1},{x:1,y:3},{x:3,y:3}],
+        locks: [{x:2,y:2, color:'yellow'}],
+        keys: [{x:0,y:0, color:'yellow'}],
+        geckos: [ mkGecko(1, 'yellow', [{x:4,y:4},{x:4,y:3},{x:4,y:2}], {x:2,y:0}) ]
+    },
+    {
+        id: 9, title: "Double Duty", grid: 6, time: 50,
+        locks: [{x:3,y:2, color:'red'}, {x:3,y:3, color:'red'}],
+        keys: [{x:0,y:5, color:'red'}],
+        geckos: [
+            mkGecko(1, 'red', [{x:0,y:0},{x:1,y:0}], {x:5,y:2}),
+            mkGecko(2, 'blue', [{x:5,y:5},{x:5,y:4}], {x:0,y:2})
+        ]
+    },
+    {
+        id: 10, title: "Colors", grid: 6, time: 60,
+        locks: [{x:4,y:2, color:'green'}],
+        keys: [{x:0,y:2, color:'green'}],
+        geckos: [
+            mkGecko(1, 'green', [{x:2,y:5},{x:2,y:4}], {x:5,y:2}),
+            mkGecko(2, 'red', [{x:2,y:2},{x:2,y:1},{x:2,y:0}], {x:2,y:3}) 
+        ]
+    },
+    // --- 11-15: PORTALS ---
+    {
+        id: 11, title: "Warp Zone", grid: 6, time: 40, mechanic: "Portals Teleport You",
+        walls: [{x:3,y:0},{x:3,y:1},{x:3,y:2},{x:3,y:3},{x:3,y:4},{x:3,y:5}],
+        portals: [{id:1, x:1,y:2, target:{x:4,y:2}}], 
+        geckos: [ mkGecko(1, 'purple', [{x:0,y:2},{x:0,y:1}], {x:5,y:2}) ]
+    },
+    {
+        id: 12, title: "Back Door", grid: 6, time: 50,
+        walls: [{x:2,y:2},{x:3,y:2}],
+        portals: [{id:1, x:0,y:0, target:{x:5,y:5}}],
+        geckos: [ mkGecko(1, 'orange', [{x:2,y:0},{x:2,y:1}], {x:2,y:3}) ] 
+    },
+    {
+        id: 13, title: "Portal Knot", grid: 5, time: 50,
+        portals: [{id:1, x:2,y:2, target:{x:0,y:0}}],
+        geckos: [
+            mkGecko(1, 'red', [{x:4,y:4},{x:3,y:4},{x:2,y:4}], {x:1,y:0}),
+            mkGecko(2, 'blue', [{x:0,y:4},{x:0,y:3}], {x:4,y:0})
+        ]
+    },
+    {
+        id: 14, title: "Blocked Exit", grid: 6, time: 60,
+        walls: [{x:4,y:1}], 
+        portals: [{id:1, x:1,y:1, target:{x:4,y:4}}],
+        geckos: [
+            mkGecko(1, 'green', [{x:1,y:5},{x:1,y:4}], {x:5,y:1}),
+            mkGecko(2, 'yellow', [{x:4,y:5},{x:4,y:4}], {x:0,y:1})
+        ]
+    },
+    {
+        id: 15, title: "Loop de Loop", grid: 7, time: 60,
+        portals: [{id:1, x:3,y:3, target:{x:0,y:3}}, {id:2, x:6,y:3, target:{x:3,y:3}}],
+        geckos: [ mkGecko(1, 'blue', [{x:1,y:3},{x:2,y:3}], {x:5,y:3}) ]
+    },
+    // --- 16-30: MIXED ---
+    { id: 16, title: "Grand Maze", grid: 8, time: 80, mechanic: "Complex Mazes", walls: [{x:4,y:0},{x:4,y:1},{x:4,y:2},{x:4,y:3},{x:4,y:5},{x:4,y:6},{x:4,y:7}], geckos: [ mkGecko(1,'red',[{x:2,y:4},{x:1,y:4},{x:0,y:4}], {x:7,y:4})] },
+    { id: 17, title: "Key Warp", grid: 6, time: 60, portals: [{id:1, x:0,y:0, target:{x:5,y:5}}], locks: [{x:5,y:4, color:'blue'}], keys: [{x:1,y:0, color:'blue'}], geckos: [mkGecko(1,'blue',[{x:0,y:5},{x:1,y:5}], {x:5,y:0})] },
+    { id: 18, title: "The Box", grid: 5, time: 40, walls: [{x:1,y:1},{x:2,y:1},{x:3,y:1}, {x:1,y:3},{x:2,y:3},{x:3,y:3}], geckos: [mkGecko(1,'green',[{x:0,y:2},{x:1,y:2}], {x:4,y:2})] },
+    { id: 19, title: "Four Corners", grid: 7, time: 90, geckos: [ mkGecko(1,'red',[{x:0,y:0},{x:1,y:0}], {x:6,y:6}), mkGecko(2,'blue',[{x:6,y:0},{x:5,y:0}], {x:0,y:6}), mkGecko(3,'yellow',[{x:0,y:6},{x:1,y:6}], {x:6,y:0}), mkGecko(4,'green',[{x:6,y:6},{x:5,y:6}], {x:0,y:0}) ] },
+    { id: 20, title: "Security Check", grid: 6, time: 70, locks: [{x:3,y:0, color:'red'}, {x:3,y:5, color:'red'}], keys: [{x:3,y:3, color:'red'}], geckos: [mkGecko(1,'red',[{x:0,y:2},{x:0,y:3}], {x:5,y:2})] },
+    { id: 21, title: "Snake Pit", grid: 8, time: 60, geckos: [mkGecko(1,'purple',[{x:4,y:4},{x:3,y:4},{x:2,y:4},{x:1,y:4}], {x:6,y:4})] },
+    { id: 22, title: "Zig Zag", grid: 6, time: 50, walls:[{x:1,y:1},{x:3,y:1},{x:5,y:1},{x:0,y:3},{x:2,y:3},{x:4,y:3}], geckos: [mkGecko(1,'orange',[{x:0,y:0},{x:0,y:1}],{x:5,y:5})] },
+    { id: 23, title: "Lock Down", grid: 5, time: 50, locks:[{x:2,y:2,color:'blue'}], keys:[{x:4,y:4,color:'blue'}], geckos:[mkGecko(1,'blue',[{x:0,y:0},{x:0,y:1}],{x:4,y:0})] },
+    { id: 24, title: "Tele-Dash", grid: 6, time: 40, portals:[{id:1,x:2,y:2,target:{x:4,y:4}}], geckos:[mkGecko(1,'green',[{x:0,y:0},{x:1,y:0}],{x:5,y:5})] },
+    { id: 25, title: "The Wall", grid: 8, time: 80, walls:[{x:4,y:0},{x:4,y:1},{x:4,y:2},{x:4,y:3},{x:4,y:4},{x:4,y:6}], geckos:[mkGecko(1,'red',[{x:0,y:4},{x:1,y:4}],{x:7,y:4})] },
+    { id: 26, title: "Crowded House", grid: 5, time: 60, geckos:[mkGecko(1,'red',[{x:0,y:0},{x:1,y:0}],{x:4,y:0}), mkGecko(2,'blue',[{x:0,y:2},{x:1,y:2}],{x:4,y:2}), mkGecko(3,'green',[{x:0,y:4},{x:1,y:4}],{x:4,y:4})] },
+    { id: 27, title: "Key Master", grid: 6, time: 70, locks:[{x:3,y:3,color:'yellow'}], keys:[{x:0,y:5,color:'yellow'}], walls:[{x:3,y:2},{x:3,y:4}], geckos:[mkGecko(1,'yellow',[{x:0,y:0},{x:1,y:0}],{x:5,y:3})] },
+    { id: 28, title: "Portal Hop", grid: 7, time: 60, portals:[{id:1,x:1,y:1,target:{x:5,y:5}}, {id:2,x:5,y:1,target:{x:1,y:5}}], geckos:[mkGecko(1,'purple',[{x:3,y:3},{x:3,y:2}],{x:3,y:6})] },
+    { id: 29, title: "The Twist", grid: 6, time: 60, walls:[{x:2,y:2},{x:3,y:3}], geckos:[mkGecko(1,'red',[{x:0,y:2},{x:0,y:1},{x:0,y:0}],{x:5,y:3})] },
+    { id: 30, title: "Victory Lap", grid: 8, time: 100, msg: "The final challenge!", walls:[{x:4,y:4}], portals:[{id:1,x:0,y:0,target:{x:7,y:7}}], geckos:[mkGecko(1,'orange',[{x:0,y:7},{x:1,y:7},{x:2,y:7}],{x:7,y:0})] }
+];
+
+/**
+ * GAME LOGIC
+ */
+class Game {
+    constructor() {
+        this.canvas = document.getElementById('gameCanvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.levelIndex = 0;
+        this.state = 'MENU'; 
+        
+        this.gridW = 6;
+        this.tileSize = 0;
+        this.walls = [];
+        this.locks = [];
+        this.keys = [];
+        this.portals = [];
+        this.geckos = [];
+        this.holes = [];
+        
+        this.timeLeft = 0;
+        this.maxTime = 0;
+        
+        // Interaction
+        this.dragStart = {x:0,y:0}; // Pixel coordinates
+        this.selectedGecko = null;
+        this.dragMode = null; // 'head' or 'tail'
+
+        this.resize();
+        window.addEventListener('resize', () => this.resize());
+        this.bindInput();
+        
+        // Setup Modal
+        document.getElementById('modal-btn').onclick = () => {
+            if (this.state === 'WON_ALL') this.levelIndex = 0;
+            if (this.state === 'WON' || this.state === 'GAME_OVER') {
+                 if(this.state === 'WON') this.levelIndex++;
+            }
+            this.startLevel(this.levelIndex);
+        };
+
+        // Start Screen
+        this.showModal('Super Gecko Slide', 'Guide the geckos to their homes!', '', 'Start Game');
+    }
+
+    resize() {
+        const maxW = window.innerWidth * 0.95;
+        const maxH = window.innerHeight * 0.8;
+        const size = Math.min(maxW, maxH);
+        this.canvas.width = size;
+        this.canvas.height = size;
+        if(this.state === 'PLAYING') this.draw();
+    }
+
+    startLevel(idx) {
+        if (idx >= LEVELS.length) {
+            this.state = 'WON_ALL';
+            this.showModal('Campaign Complete!', 'You are a Gecko Master!', '★★★★★', 'Play Again');
+            return;
+        }
+
+        const data = LEVELS[idx];
+        this.gridW = data.grid;
+        this.tileSize = this.canvas.width / this.gridW;
+        this.maxTime = data.time;
+        this.timeLeft = data.time;
+        
+        // Deep Copy Data
+        this.walls = data.walls ? data.walls.map(w=>({...w})) : [];
+        this.locks = data.locks ? data.locks.map(l=>({...l})) : [];
+        this.keys = data.keys ? data.keys.map(k=>({...k})) : [];
+        this.portals = data.portals ? data.portals.map(p=>({...p})) : [];
+        
+        this.geckos = JSON.parse(JSON.stringify(data.geckos));
+        this.holes = this.geckos.map(g => ({...g.target, color: g.color}));
+
+        // UI
+        document.getElementById('level-display').innerText = `Level ${idx+1}: ${data.title}`;
+        document.getElementById('mechanic-display').innerText = data.mechanic || "";
+        document.getElementById('modal').style.display = 'none';
+        
+        this.state = 'PLAYING';
+        this.lastTime = performance.now();
+        requestAnimationFrame(ts => this.loop(ts));
+    }
+
+    bindInput() {
+        // Helper to get pixel coords
+        const getPointerPos = (e) => {
+            const r = this.canvas.getBoundingClientRect();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            return { x: clientX - r.left, y: clientY - r.top };
+        };
+
+        const start = (e) => {
+            if (this.state !== 'PLAYING') return;
+            if (e.touches) e.preventDefault(); // Prevent scroll
+            
+            const pos = getPointerPos(e);
+            const gridPos = { 
+                x: Math.floor(pos.x / this.tileSize), 
+                y: Math.floor(pos.y / this.tileSize) 
+            };
+            
+            for (let g of this.geckos) {
+                if (IS_SAME(gridPos, g.segments[0])) {
+                    this.selectedGecko = g; this.dragMode = 'head';
+                    this.dragStart = pos; break;
+                } else if (IS_SAME(gridPos, g.segments[g.segments.length-1])) {
+                    this.selectedGecko = g; this.dragMode = 'tail';
+                    this.dragStart = pos; break;
+                }
+            }
+        };
+
+        const move = (e) => {
+            if (!this.selectedGecko) return;
+            if (e.touches) e.preventDefault();
+            
+            const pos = getPointerPos(e);
+            const dx = pos.x - this.dragStart.x;
+            const dy = pos.y - this.dragStart.y;
+            const THRESHOLD = this.tileSize * 0.6;
+
+            // Drag Threshold Check
+            if (Math.abs(dx) > THRESHOLD || Math.abs(dy) > THRESHOLD) {
+                const dir = Math.abs(dx) > Math.abs(dy) ? {x:Math.sign(dx),y:0} : {x:0,y:Math.sign(dy)};
+                
+                // Attempt Move
+                const success = this.attemptMove(this.selectedGecko, this.dragMode, dir);
+                
+                if (success) {
+                    // Update drag anchor so we can continue dragging from the new position
+                    // We snap the anchor to the center of the new tile to keep it feeling synced
+                    const segs = this.selectedGecko.segments;
+                    const activeSegment = (this.dragMode === 'head') ? segs[0] : segs[segs.length-1];
+                    
+                    this.dragStart = {
+                        x: activeSegment.x * this.tileSize + this.tileSize/2,
+                        y: activeSegment.y * this.tileSize + this.tileSize/2
+                    };
+                }
+            }
+        };
+
+        const end = () => { this.selectedGecko = null; };
+
+        this.canvas.addEventListener('mousedown', start);
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', end);
+        this.canvas.addEventListener('touchstart', start, {passive:false});
+        window.addEventListener('touchmove', move, {passive:false});
+        window.addEventListener('touchend', end);
+    }
+
+    attemptMove(gecko, mode, dir) {
+        const segs = gecko.segments;
+        const head = segs[0];
+        const tail = segs[segs.length-1];
+        
+        // Determine intended next position based on Head or Tail drag
+        let currEnd = (mode === 'head') ? head : tail;
+        let nextPos = { x: currEnd.x + dir.x, y: currEnd.y + dir.y };
+
+        // 1. PORTALS Check
+        let usedPortal = null;
+        const portal = this.portals.find(p => IS_SAME(p, nextPos));
+        if (portal) {
+            nextPos = { ...portal.target };
+            usedPortal = portal;
+        }
+
+        // 2. BOUNDS & WALLS Check
+        if (nextPos.x < 0 || nextPos.x >= this.gridW || nextPos.y < 0 || nextPos.y >= this.gridW) return false;
+        if (this.walls.some(w => IS_SAME(w, nextPos))) return false;
+        
+        // 3. LOCKS Check
+        const lock = this.locks.find(l => IS_SAME(l, nextPos));
+        if (lock) return false; 
+
+        // 4. BODY COLLISION
+        let newSegs = [...segs];
+        if (mode === 'head') {
+            if (segs.length > 1 && IS_SAME(nextPos, segs[1])) return false;
+            newSegs.unshift(nextPos);
+            newSegs.pop();
+        } else {
+            if (segs.length > 1 && IS_SAME(nextPos, segs[segs.length-2])) return false;
+            newSegs.push(nextPos);
+            newSegs.shift();
+        }
+
+        for (let other of this.geckos) {
+            if (other === gecko) continue;
+            if (other.segments.some(s => IS_SAME(s, nextPos))) return false;
+        }
+        const isSelfCollide = newSegs.filter(s => IS_SAME(s, nextPos)).length > 1;
+        if (isSelfCollide) return false;
+
+        // 5. HOLE Interaction
+        const hitHole = this.holes.find(h => IS_SAME(h, nextPos));
+        if (hitHole) {
+            if (hitHole.color === gecko.color) {
+                this.geckoExit(gecko);
+                return true; // Move handled by exit
+            } else {
+                return false; // Wrong hole
+            }
+        }
+
+        // 6. COMMIT MOVE
+        gecko.segments = newSegs;
+
+        // 7. POST-MOVE EFFECTS (Keys)
+        const newHead = gecko.segments[0];
+        const keyIdx = this.keys.findIndex(k => IS_SAME(k, newHead));
+        if (keyIdx !== -1) {
+            const key = this.keys[keyIdx];
+            this.keys.splice(keyIdx, 1);
+            this.locks = this.locks.filter(l => l.color !== key.color);
+        }
+        
+        return true;
+    }
+
+    geckoExit(gecko) {
+        this.geckos = this.geckos.filter(g => g !== gecko);
+        this.holes = this.holes.filter(h => h.color !== gecko.color);
+        // Stop dragging this gecko
+        this.selectedGecko = null;
+        if (this.geckos.length === 0) this.winLevel();
+    }
+
+    winLevel() {
+        this.state = 'WON';
+        const pct = this.timeLeft / this.maxTime;
+        let stars = 1;
+        if (pct > 0.5) stars = 3;
+        else if (pct > 0.2) stars = 2;
+        const starStr = '★'.repeat(stars) + '☆'.repeat(3-stars);
+        this.showModal('Level Complete!', 'Great Job!', starStr, 'Next Level');
+    }
+
+    gameOver() {
+        this.state = 'GAME_OVER';
+        this.showModal('Time Up!', 'The geckos are stuck!', '☆☆☆', 'Try Again');
+    }
+
+    showModal(title, sub, stars, btnTxt) {
+        document.getElementById('modal').style.display = 'flex';
+        document.getElementById('modal-title').innerText = title;
+        document.getElementById('modal-sub').innerText = sub;
+        document.getElementById('modal-stars').innerText = stars;
+        document.getElementById('modal-btn').innerText = btnTxt;
+        
+        // Badge
+        const badge = document.getElementById('new-mech-badge');
+        badge.style.display = (LEVELS[this.levelIndex+1]?.mechanic) ? 'block' : 'none';
+    }
+
+    loop(ts) {
+        if (this.state !== 'PLAYING') return;
+        const dt = (ts - this.lastTime)/1000;
+        this.lastTime = ts;
+        
+        this.timeLeft -= dt;
+        if (this.timeLeft <= 0) { this.timeLeft = 0; this.gameOver(); }
+        
+        const pct = (this.timeLeft / this.maxTime) * 100;
+        document.getElementById('timer-bar-fill').style.width = `${pct}%`;
+        
+        this.draw();
+        requestAnimationFrame(t => this.loop(t));
+    }
+
+    /**
+     * RENDERING
+     */
+    draw() {
+        this.ctx.clearRect(0,0,this.canvas.width,this.canvas.height);
+        this.tileSize = this.canvas.width / this.gridW; 
+        const TS = this.tileSize;
+        const CTX = this.ctx;
+
+        // Grid BG
+        CTX.fillStyle = COLORS.empty;
+        CTX.fillRect(0,0,this.canvas.width, this.canvas.height);
+        
+        // Draw Visible Grid Lines
+        CTX.strokeStyle = 'rgba(255,255,255,0.08)'; // Lighter, visible lines
+        CTX.lineWidth = 2;
+        CTX.beginPath();
+        for(let i=0; i<=this.gridW; i++) {
+            CTX.moveTo(i*TS,0); CTX.lineTo(i*TS, this.canvas.height);
+            CTX.moveTo(0,i*TS); CTX.lineTo(this.canvas.width, i*TS);
+        }
+        CTX.stroke();
+
+        // Walls
+        CTX.fillStyle = COLORS.wall;
+        this.walls.forEach(w => this.drawRoundedRect(w.x, w.y, 0.9, 4));
+
+        // Locks
+        this.locks.forEach(l => {
+            CTX.fillStyle = COLORS[l.color].dark;
+            this.drawRoundedRect(l.x, l.y, 0.9, 4);
+            CTX.fillStyle = '#fff';
+            CTX.fillRect(l.x*TS + TS*0.35, l.y*TS + TS*0.4, TS*0.3, TS*0.25);
+            CTX.beginPath();
+            CTX.arc(l.x*TS + TS*0.5, l.y*TS + TS*0.4, TS*0.1, Math.PI, 0);
+            CTX.stroke();
+        });
+
+        // Keys
+        this.keys.forEach(k => {
+            CTX.fillStyle = COLORS[k.color].main;
+            const cx = k.x*TS+TS/2, cy = k.y*TS+TS/2;
+            CTX.beginPath(); CTX.arc(cx, cy-TS*0.1, TS*0.15, 0, Math.PI*2); CTX.fill();
+            CTX.fillRect(cx-TS*0.05, cy, TS*0.1, TS*0.25);
+            CTX.fillRect(cx, cy+TS*0.15, TS*0.1, TS*0.05);
+        });
+
+        // Portals
+        CTX.strokeStyle = COLORS.portal;
+        CTX.lineWidth = 3;
+        this.portals.forEach(p => {
+            const cx = p.x*TS+TS/2, cy = p.y*TS+TS/2;
+            CTX.beginPath(); CTX.arc(cx, cy, TS*0.35, 0, Math.PI*2); CTX.stroke();
+            CTX.beginPath(); CTX.arc(cx, cy, TS*0.25, 0, Math.PI*2); CTX.stroke();
+        });
+
+        // Holes
+        this.holes.forEach(h => {
+            CTX.fillStyle = COLORS[h.color].hole;
+            CTX.beginPath();
+            CTX.arc(h.x*TS + TS/2, h.y*TS + TS/2, TS*0.4, 0, Math.PI*2);
+            CTX.fill();
+            CTX.strokeStyle = COLORS[h.color].dark;
+            CTX.lineWidth = 4;
+            CTX.stroke();
+            CTX.fillStyle = 'rgba(0,0,0,0.5)';
+            CTX.beginPath(); CTX.arc(h.x*TS + TS/2, h.y*TS + TS/2, TS*0.25, 0, Math.PI*2); CTX.fill();
+        });
+
+        // GECKOS
+        this.geckos.forEach(g => {
+            const c = COLORS[g.color];
+            const segs = g.segments;
+
+            // Body Connections
+            CTX.strokeStyle = c.main;
+            CTX.lineWidth = TS * 0.6;
+            CTX.lineCap = 'round';
+            CTX.lineJoin = 'round';
+            CTX.beginPath();
+            if (segs.length > 0) {
+                CTX.moveTo(segs[0].x*TS + TS/2, segs[0].y*TS + TS/2);
+                for(let i=1; i<segs.length; i++) {
+                    CTX.lineTo(segs[i].x*TS + TS/2, segs[i].y*TS + TS/2);
+                }
+            }
+            CTX.stroke();
+
+            // Body Segments
+            segs.forEach((s, i) => {
+                const cx = s.x*TS + TS/2;
+                const cy = s.y*TS + TS/2;
+                const isHead = (i === 0);
+                
+                CTX.fillStyle = c.main;
+                CTX.beginPath();
+                let rad = isHead ? TS*0.32 : TS*0.28;
+                CTX.arc(cx, cy, rad, 0, Math.PI*2);
+                CTX.fill();
+
+                CTX.fillStyle = 'rgba(255,255,255,0.2)';
+                CTX.beginPath();
+                CTX.arc(cx - rad*0.3, cy - rad*0.3, rad*0.4, 0, Math.PI*2);
+                CTX.fill();
+
+                if (isHead) {
+                    CTX.fillStyle = 'white';
+                    let dx = 0, dy = 1; 
+                    if (segs.length > 1) {
+                        dx = segs[0].x - segs[1].x;
+                        dy = segs[0].y - segs[1].y;
+                    }
+                    const eyeOff = TS*0.15;
+                    const eyeSize = TS*0.1;
+                    
+                    let ex1, ey1, ex2, ey2;
+                    if (Math.abs(dx) > Math.abs(dy)) { 
+                        ex1 = cx + dx*TS*0.1; ey1 = cy - eyeOff;
+                        ex2 = cx + dx*TS*0.1; ey2 = cy + eyeOff;
+                    } else { 
+                        ex1 = cx - eyeOff; ey1 = cy + dy*TS*0.1;
+                        ex2 = cx + eyeOff; ey2 = cy + dy*TS*0.1;
+                    }
+
+                    CTX.beginPath(); CTX.arc(ex1, ey1, eyeSize, 0, Math.PI*2); CTX.fill();
+                    CTX.beginPath(); CTX.arc(ex2, ey2, eyeSize, 0, Math.PI*2); CTX.fill();
+                    CTX.fillStyle = 'black';
+                    CTX.beginPath(); CTX.arc(ex1, ey1, eyeSize*0.5, 0, Math.PI*2); CTX.fill();
+                    CTX.beginPath(); CTX.arc(ex2, ey2, eyeSize*0.5, 0, Math.PI*2); CTX.fill();
+                }
+            });
+        });
+    }
+
+    drawRoundedRect(x, y, scale, r) {
+        const TS = this.tileSize;
+        const pad = (1-scale)*TS/2;
+        const X = x*TS+pad, Y = y*TS+pad, W = TS*scale, H = TS*scale;
+        this.ctx.beginPath();
+        this.ctx.roundRect(X, Y, W, H, r);
+        this.ctx.fill();
+    }
+}
+
+// Start
+const game = new Game();
+
+</script>
+</body>
+</html>
