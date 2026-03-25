@@ -704,6 +704,8 @@ class BattleGameClass {
     updateQDisplay() {
         const el = document.getElementById('battle-q-count');
         if (el) el.textContent = this.questionsCompleted;
+        const el2 = document.getElementById('battle-q-total');
+        if (el2) el2.textContent = this.TOTAL_Q;
     }
     updateTimerDisplay() {
         const el = document.getElementById('battle-timer-display');
