@@ -338,8 +338,9 @@ class BattleGameClass {
         this.extendLevel();
         this.cleanupLevel();
 
-        // Camera follows player
-        this.scrollX = Math.max(0, this.player.x - this.W * 0.35);
+        // Smooth camera follow (lerp)
+        const targetX = Math.max(0, this.player.x - this.W * 0.35);
+        this.scrollX += (targetX - this.scrollX) * 0.1;
     }
 
     // ── PLAYER ────────────────────────────────────────────────────────────────
@@ -431,22 +432,27 @@ class BattleGameClass {
         const p = this.player;
         if (!p || p.invTimer > 0) return;
 
+        // Shrink hitboxes inward for fairer detection
+        const px = p.x + 5, py = p.y + 3, pw = p.w - 10, ph = p.h - 3;
+
         for (const e of this.enemies) {
             if (!e.alive) continue;
-            // Check overlap
-            if (!(p.x+p.w > e.x && p.x < e.x+e.w && p.y+p.h > e.y && p.y < e.y+e.h)) continue;
+            const ex = e.x + 5, ey = e.y + 4, ew = e.w - 10, eh = e.h - 4;
 
-            // Stomp: player is falling and feet are near enemy top
-            if (p.vy > 0 && p.y + p.h <= e.y + e.h * 0.45) {
+            // AABB overlap
+            if (!(px+pw > ex && px < ex+ew && py+ph > ey && py < ey+eh)) continue;
+
+            // Stomp: player falling AND feet in top 25% of enemy
+            if (p.vy > 0 && py + ph <= ey + eh * 0.25) {
                 e.alive = false;
-                p.vy = this.JUMP_VEL * 0.55; // bounce up
+                p.vy = this.JUMP_VEL * 0.55;
                 if (e.isCorrect) this.onStompCorrect(e);
                 else             this.onStompWrong(e);
             } else {
-                // Side hit — player takes damage
+                // Side hit — knockback via velocity (no teleport)
                 this.playerHit();
-                p.vy = this.JUMP_VEL * 0.4;
-                p.x += (p.x < e.x) ? -30 : 30;
+                p.vy = this.JUMP_VEL * 0.35;
+                p.vx = (p.x < e.x) ? -280 : 280;
             }
             break;
         }
