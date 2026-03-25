@@ -131,7 +131,7 @@ const AvatarManager = {
         const gradientDefs = this.getGradientDefs();
         
         return `
-            <svg width="${size}" height="${size}" viewBox="0 0 100 100" class="avatar-svg ${isAnimated ? 'animated' : ''}">
+            <svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 100 100" class="avatar-svg ${isAnimated ? 'animated' : ''}">
                 <defs>${gradientDefs}</defs>
                 <!-- Legs -->
                 <g class="avatar-legs">

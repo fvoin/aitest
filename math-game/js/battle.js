@@ -228,6 +228,8 @@ class BattleGameClass {
             patrolDir: Math.random() < 0.5 ? 1 : -1,
             patrolTimer: Math.random() * 2 + 1,
             shootTimer: Math.random() * 2 + 1.5,
+            jumpTimer: Math.random() * 3 + 3,
+            onGround: false,
         };
         this.loadRandomAvatarForEnemy(enemy);
         return enemy;
@@ -407,11 +409,28 @@ class BattleGameClass {
             // Gravity + platform landing
             e.vy += this.GRAVITY * dt;
             e.y  += e.vy * dt;
+            e.onGround = false;
             for (const pl of this.platforms) {
                 if (e.vy >= 0 && e.x + e.w > pl.x && e.x < pl.x + pl.w &&
                     e.y + e.h >= pl.y && e.y + e.h - e.vy * dt <= pl.y + 8) {
-                    e.y = pl.y - e.h; e.vy = 0;
+                    e.y = pl.y - e.h; e.vy = 0; e.onGround = true;
                 }
+            }
+            // Fell off bottom → respawn on ground
+            if (e.y > this.H + 40) {
+                e.x = e.patrolCX - e.w / 2;
+                e.y = this.platforms[0].y - e.h;
+                e.vy = 0;
+            }
+
+            // Random jumping between platforms
+            e.jumpTimer -= dt;
+            if (e.jumpTimer <= 0 && e.onGround) {
+                e.vy = this.JUMP_VEL * 0.9;
+                e.onGround = false;
+                e.jumpTimer = Math.random() * 4 + 3;
+                // Update patrol center to current position after landing
+                e.patrolCX = e.x + e.w / 2;
             }
 
             // Shoot at player
