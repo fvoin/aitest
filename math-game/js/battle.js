@@ -4,7 +4,7 @@ class BattleGameClass {
         this.GRAVITY      = 880;
         this.PLAYER_SPEED = 200;
         this.JUMP_VEL     = -440;
-        this.TOTAL_Q      = 10;
+        this.TOTAL_Q      = 3;
         this.GH           = 42;   // ground height
 
         this.canvas = null; this.ctx = null;
