@@ -462,10 +462,8 @@ h1 {
 
 #battle-canvas {
     display: block;
-    width: 100%;
-    flex: 1;
-    min-height: 230px;
     background: #87CEEB;
+    flex-shrink: 0;
 }
 
 .battle-controls {
