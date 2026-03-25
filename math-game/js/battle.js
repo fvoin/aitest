@@ -9,7 +9,7 @@ class BattleGameClass {
         this.ENEMY_BUL_SPEED = 255;
         this.SHOOT_CD        = 0.42;
         this.TOTAL_Q         = 10;
-        this.ENEMY_COUNT     = 5;
+        this.ENEMY_COUNT     = 3;
 
         // Runtime
         this.canvas   = null;
@@ -124,21 +124,45 @@ class BattleGameClass {
 
     createPlatforms() {
         const W = this.W, H = this.H, GH = 42;
+        const ri = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
         this.platforms = [
-            { x: 0,          y: H - GH,        w: W,   h: GH, isGround: true  },
-            { x: 18,         y: H - GH - 105,  w: 112, h: 14, isGround: false },
-            { x: W/2 - 72,   y: H - GH - 190,  w: 144, h: 14, isGround: false },
-            { x: W - 130,    y: H - GH - 105,  w: 112, h: 14, isGround: false },
+            { x: 0, y: H - GH, w: W, h: GH, isGround: true },
         ];
+
+        // Random floating platforms (3–5), spread across height layers
+        const layers = [
+            { yMin: H - GH - 135, yMax: H - GH - 95 },
+            { yMin: H - GH - 135, yMax: H - GH - 95 },
+            { yMin: H - GH - 215, yMax: H - GH - 165 },
+            { yMin: H - GH - 215, yMax: H - GH - 165 },
+            { yMin: H - GH - 280, yMax: H - GH - 240 },
+        ];
+        const numPlats = ri(3, 5);
+        for (let i = 0; i < numPlats; i++) {
+            const layer = layers[i % layers.length];
+            if (layer.yMin < 20) continue; // skip if too high for canvas
+            const pw = ri(90, 150);
+            const px = ri(10, W - pw - 10);
+            const py = ri(layer.yMin, layer.yMax);
+            // Check overlap
+            let ok = true;
+            for (const pl of this.platforms) {
+                if (!pl.isGround && Math.abs(pl.y - py) < 35 && !(px + pw < pl.x - 15 || px > pl.x + pl.w + 15)) {
+                    ok = false; break;
+                }
+            }
+            if (ok) this.platforms.push({ x: px, y: py, w: pw, h: 14, isGround: false });
+        }
+
+        // Spawn points: 3 on ground + 1 per floating platform
         this.spawnPoints = [
-            { x: 75,       y: H - GH },
-            { x: W * 0.32, y: H - GH },
-            { x: W * 0.68, y: H - GH },
-            { x: W - 75,   y: H - GH },
-            { x: 74,       y: H - GH - 105 },
-            { x: W / 2,    y: H - GH - 190 },
-            { x: W - 86,   y: H - GH - 105 },
+            { x: W * 0.2,  y: H - GH },
+            { x: W * 0.5,  y: H - GH },
+            { x: W * 0.8,  y: H - GH },
         ];
+        for (const pl of this.platforms) {
+            if (!pl.isGround) this.spawnPoints.push({ x: pl.x + pl.w / 2, y: pl.y });
+        }
     }
 
     // ── QUESTION GENERATION ───────────────────────────────────────────────────
@@ -166,7 +190,7 @@ class BattleGameClass {
             const a = ri(4,15), b = ri(4,15);
             text = `${a} × ${b}`; answer = a * b;
         }
-        return { text, answer, wrongs: this.makeWrongs(answer, 4) };
+        return { text, answer, wrongs: this.makeWrongs(answer, this.ENEMY_COUNT - 1) };
     }
 
     makeWrongs(correct, n) {
@@ -181,28 +205,61 @@ class BattleGameClass {
     }
 
     generateSpawnPlan() {
-        // For each question index, which enemy slot (0-4) carries the correct answer.
-        // Slot 4 = newly spawned enemy on advance. Mix new vs existing.
+        // For each question, which enemy slot carries the correct answer.
+        // Last slot = newly spawned enemy. Mix new vs existing.
+        const last = this.ENEMY_COUNT - 1;
         return Array.from({ length: this.TOTAL_Q }, () =>
-            Math.random() < 0.4 ? 4 : Math.floor(Math.random() * 4)
+            Math.random() < 0.4 ? last : Math.floor(Math.random() * last)
         );
     }
 
     // ── ENEMY FACTORY ─────────────────────────────────────────────────────────
 
     createEnemy(sp, answer, isCorrect) {
-        const EW = 44, EH = 44;
-        return {
+        const EW = 44, EH = 58;
+        const enemy = {
             x: sp.x - EW / 2, y: sp.y - EH,
             w: EW, h: EH, vy: 0,
             answer, isCorrect,
             color: this.COLORS[Math.floor(Math.random() * this.COLORS.length)],
+            avatarImg: null,
             alive: true,
             patrolCX: sp.x, patrolRange: 58,
             patrolDir: Math.random() < 0.5 ? 1 : -1,
             patrolTimer: Math.random() * 2 + 1,
             shootTimer: Math.random() * 2 + 1.5,
         };
+        this.loadRandomAvatarForEnemy(enemy);
+        return enemy;
+    }
+
+    loadRandomAvatarForEnemy(enemy) {
+        if (typeof AvatarManager === 'undefined') return;
+        const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
+        const saved = { ...AvatarManager.current };
+        AvatarManager.current = {
+            faceForm:   rnd(AvatarManager.parts.faceForm),
+            faceColor:  rnd(AvatarManager.colors.face),
+            eyesForm:   rnd(['angry','cool','surprised','normal','wink']),
+            eyesColor:  rnd(AvatarManager.colors.eyes),
+            hairType:   rnd(AvatarManager.parts.hairType),
+            hairColor:  rnd(AvatarManager.colors.hair),
+            noseType:   rnd(AvatarManager.parts.noseType),
+            lipsType:   rnd(['normal','wide','vampire','duck-face','smile']),
+            accessory:  rnd(AvatarManager.parts.accessory),
+            outfit:     rnd(AvatarManager.parts.outfit),
+            outfitColor:rnd(AvatarManager.colors.outfit),
+        };
+        const svg = AvatarManager.getSVG(80, false);
+        AvatarManager.current = saved;
+        try {
+            const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+            const url  = URL.createObjectURL(blob);
+            const img  = new Image();
+            img.onload  = () => { enemy.avatarImg = img; URL.revokeObjectURL(url); };
+            img.onerror = () => { URL.revokeObjectURL(url); };
+            img.src = url;
+        } catch (e) { /* fallback to blob monster */ }
     }
 
     initEnemies() {
@@ -229,6 +286,9 @@ class BattleGameClass {
 
         this.questions      = Array.from({ length: this.TOTAL_Q }, () => this.makeQuestion());
         this.enemySpawnPlan = this.generateSpawnPlan();
+
+        // Reload player avatar (picks up latest customization)
+        this.loadAvatar();
 
         this.resizeCanvas();
         this.createPlatforms();
@@ -394,7 +454,7 @@ class BattleGameClass {
     updateShrapnel(dt) {
         for (const s of this.shrapnel) {
             s.x+=s.vx*dt; s.y+=s.vy*dt;
-            s.vy+=this.GRAVITY*0.45*dt; s.vx*=0.984; s.life-=dt;
+            s.vy+=this.GRAVITY*0.22*dt; s.vx*=0.995; s.life-=dt;
         }
         this.shrapnel = this.shrapnel.filter(s => s.life > 0);
     }
@@ -472,7 +532,7 @@ class BattleGameClass {
             ? { ans: q.answer, ok: true }
             : { ans: wrongs[wi++ % wrongs.length], ok: false };
 
-        for (let i = 0; i < survivors.length && i < 4; i++) {
+        for (let i = 0; i < survivors.length && i < this.ENEMY_COUNT - 1; i++) {
             const sa = slotAns(i);
             survivors[i].answer    = sa.ans;
             survivors[i].isCorrect = sa.ok;
@@ -496,8 +556,9 @@ class BattleGameClass {
 
     onWrongKill(e) {
         const cx = e.x + e.w / 2, cy = e.y + e.h / 2;
-        this.spawnParticles(cx, cy, '#ff9500', '#ffcc00', 20);
-        this.spawnShrapnel(cx, cy, 10);
+        this.spawnParticles(cx, cy, '#ff9500', '#ffcc00', 40);
+        this.spawnParticles(cx, cy, '#ff3300', '#ff6600', 25);
+        this.spawnShrapnel(cx, cy, 30);
     }
 
     spawnParticles(cx, cy, c1, c2, n) {
@@ -516,13 +577,13 @@ class BattleGameClass {
     spawnShrapnel(cx, cy, n) {
         for (let i = 0; i < n; i++) {
             const ang = Math.random()*Math.PI*2;
-            const spd = 160 + Math.random()*270;
+            const spd = 350 + Math.random()*500;
             this.shrapnel.push({
                 x:cx, y:cy,
-                vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd - 90,
-                r:5+Math.random()*5,
-                color:`hsl(${15+Math.random()*35},90%,55%)`,
-                life: 2 + Math.random()*1.2
+                vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd - 200,
+                r:4+Math.random()*7,
+                color:`hsl(${10+Math.random()*40},95%,${45+Math.random()*20}%)`,
+                life: 3 + Math.random()*2.5
             });
         }
     }
@@ -647,54 +708,51 @@ class BattleGameClass {
 
     drawEnemy(e) {
         const ctx = this.ctx;
-        const cx = e.x+e.w/2, cy = e.y+e.h/2, r = e.w/2-1;
+        const cx = e.x + e.w / 2;
+        const pDir = (this.player && this.player.x + this.player.w / 2 > cx) ? 1 : -1;
 
-        // Shadow
-        ctx.fillStyle = 'rgba(0,0,0,0.11)';
-        ctx.beginPath(); ctx.ellipse(cx, e.y+e.h+3, r*0.72, 4, 0, 0, Math.PI*2); ctx.fill();
+        ctx.save();
+        // Flip enemy to face player
+        if (pDir < 0) {
+            ctx.translate(cx, 0);
+            ctx.scale(-1, 1);
+            ctx.translate(-cx, 0);
+        }
 
-        // Body
-        ctx.fillStyle = e.color;
-        ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,0.16)'; ctx.lineWidth = 2; ctx.stroke();
+        // Draw avatar or fallback
+        if (e.avatarImg) {
+            ctx.drawImage(e.avatarImg, e.x - 1, e.y, e.w + 2, e.h - 4);
+        } else {
+            // Fallback blob monster
+            const cy = e.y + e.h / 2, r = e.w / 2 - 1;
+            ctx.fillStyle = e.color;
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.beginPath(); ctx.arc(cx - r * 0.3, cy - r * 0.1, r * 0.25, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx + r * 0.3, cy - r * 0.1, r * 0.25, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#111';
+            ctx.beginPath(); ctx.arc(cx - r * 0.28, cy - r * 0.1, r * 0.12, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(cx + r * 0.32, cy - r * 0.1, r * 0.12, 0, Math.PI * 2); ctx.fill();
+        }
 
-        // Shine
-        ctx.fillStyle = 'rgba(255,255,255,0.20)';
-        ctx.beginPath(); ctx.arc(cx-r*0.28, cy-r*0.28, r*0.20, 0, Math.PI*2); ctx.fill();
-
-        // Eyes
-        const ey2 = cy - r*0.12;
-        ctx.fillStyle = 'white';
-        ctx.beginPath(); ctx.arc(cx-r*0.30, ey2, r*0.26, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx+r*0.30, ey2, r*0.26, 0, Math.PI*2); ctx.fill();
-        ctx.fillStyle = '#111';
-        ctx.beginPath(); ctx.arc(cx-r*0.28, ey2, r*0.12, 0, Math.PI*2); ctx.fill();
-        ctx.beginPath(); ctx.arc(cx+r*0.32, ey2, r*0.12, 0, Math.PI*2); ctx.fill();
-
-        // Angry brows
-        ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(cx-r*0.52, ey2-r*0.26); ctx.lineTo(cx-r*0.10, ey2-r*0.18); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(cx+r*0.52, ey2-r*0.26); ctx.lineTo(cx+r*0.10, ey2-r*0.18); ctx.stroke();
-
-        // Mouth
-        ctx.strokeStyle = '#333'; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(cx, cy+r*0.28, r*0.28, 0.1, Math.PI-0.1); ctx.stroke();
-
-        // Tiny gun toward player
-        const pDir = (this.player && this.player.x+this.player.w/2 > cx) ? 1 : -1;
+        // Gun
         ctx.fillStyle = '#444';
-        ctx.fillRect(cx+pDir*r*0.45, cy-2, pDir*r*0.72, 5);
+        ctx.fillRect(e.x + e.w - 2, e.y + Math.round(e.h * 0.33), 14, 5);
+        ctx.fillStyle = '#222';
+        ctx.fillRect(e.x + e.w + 10, e.y + Math.round(e.h * 0.33) + 1, 4, 3);
+
+        ctx.restore();
 
         // Answer label — neutral dark background, player must calculate
         const ans = String(e.answer);
         ctx.font = 'bold 13px Arial';
         const tw = ctx.measureText(ans).width;
-        const lw = tw+16, lh = 22, lx = cx-lw/2, ly = e.y-lh-5;
+        const lw = tw + 16, lh = 22, lx = cx - lw / 2, ly = e.y - lh - 5;
         ctx.fillStyle = 'rgba(25,25,45,0.88)';
         bRR(ctx, lx, ly, lw, lh, 7); ctx.fill();
         ctx.fillStyle = '#fff';
         ctx.textAlign = 'center';
-        ctx.fillText(ans, cx, ly+lh-6);
+        ctx.fillText(ans, cx, ly + lh - 6);
     }
 
     drawQuestion() {
