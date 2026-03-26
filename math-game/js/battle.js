@@ -257,18 +257,32 @@ class BattleGameClass {
 
     createEnemy(sp, answer, isCorrect) {
         const EW = 63, EH = 84;
-        const enemy = {
+        // Pick a random behavior
+        var r = Math.random();
+        var behavior, speed, patrolRange, jumpTimer;
+        if (r < 0.15)       { behavior = 'stand';     speed = 0;   patrolRange = 0;   }
+        else if (r < 0.30)  { behavior = 'walk';      speed = 35 + Math.random()*20;  patrolRange = 9999; }
+        else if (r < 0.45)  { behavior = 'slow';      speed = 20 + Math.random()*15;  patrolRange = 60;  }
+        else if (r < 0.60)  { behavior = 'run';       speed = 90 + Math.random()*40;  patrolRange = 120; }
+        else if (r < 0.75)  { behavior = 'jumper';    speed = 30 + Math.random()*20;  patrolRange = 60;  jumpTimer = 1 + Math.random()*2; }
+        else                { behavior = 'patrol';    speed = 45;  patrolRange = 75;  }
+        var dir = Math.random()<0.5 ? 1 : -1;
+        // walk goes one direction only
+        if (behavior === 'walk') dir = 1;
+        var enemy = {
             x: sp.x - EW/2, y: sp.y - EH,
             w: EW, h: EH, vy: 0,
-            answer, isCorrect,
+            answer: answer, isCorrect: isCorrect,
             color: this.COLORS[Math.floor(Math.random()*this.COLORS.length)],
             avatarImg: null, alive: true,
-            patrolCX: sp.x, patrolRange: 75,
-            patrolDir: Math.random()<0.5?1:-1,
+            behavior: behavior,
+            speed: speed,
+            patrolCX: sp.x, patrolRange: patrolRange,
+            patrolDir: dir,
             patrolTimer: Math.random()*2+1,
+            jumpTimer: jumpTimer || 0,
             onGround: false,
-            // Thank-you fly animation state
-            flyingToHud: false, flyX: 0, flyY: 0, flyAlpha: 1, flyScale: 1,
+            walkPhase: Math.random() * Math.PI * 2,
         };
         this.loadRandomAvatarForEnemy(enemy);
         return enemy;
@@ -303,7 +317,7 @@ class BattleGameClass {
             x: 80, y: this.H - this.GH - 87,
             w: 54, h: 87, vx: 0, vy: 0,
             onGround: true, facingRight: true, invTimer: 0,
-            prevY: this.H - this.GH - 87,
+            prevY: this.H - this.GH - 87, walkPhase: 0,
         };
         this.airJumpUsed = false;
         this.flipAngle = 0;
@@ -408,27 +422,61 @@ class BattleGameClass {
         }
 
         if (p.invTimer > 0) p.invTimer -= dt;
+
+        // Walk animation phase
+        if (p.onGround && Math.abs(p.vx) > 20) {
+            p.walkPhase += Math.abs(p.vx) * dt * 0.08;
+        } else if (p.onGround) {
+            p.walkPhase = 0;
+        }
     }
 
     // ── ENEMIES ───────────────────────────────────────────────────────────────
 
     updateEnemies(dt) {
-        for (const e of this.enemies) {
+        for (var i = 0; i < this.enemies.length; i++) {
+            var e = this.enemies[i];
             if (!e.alive) continue;
-            // Patrol
-            e.patrolTimer -= dt;
-            if (e.patrolTimer <= 0) { e.patrolDir *= -1; e.patrolTimer = Math.random()*2+1; }
-            e.x += e.patrolDir * 45 * dt;
-            const minX = e.patrolCX - e.patrolRange;
-            const maxX = e.patrolCX + e.patrolRange;
-            if (e.x + e.w/2 < minX) { e.x = minX - e.w/2; e.patrolDir = 1; }
-            if (e.x + e.w/2 > maxX) { e.x = maxX - e.w/2; e.patrolDir = -1; }
+
+            // Movement based on behavior
+            if (e.behavior === 'stand') {
+                // no movement
+            } else if (e.behavior === 'walk') {
+                e.x += e.patrolDir * e.speed * dt;
+            } else if (e.behavior === 'patrol' || e.behavior === 'slow' || e.behavior === 'run') {
+                e.patrolTimer -= dt;
+                if (e.patrolTimer <= 0) { e.patrolDir *= -1; e.patrolTimer = Math.random()*2+1; }
+                e.x += e.patrolDir * e.speed * dt;
+                var minX = e.patrolCX - e.patrolRange;
+                var maxX = e.patrolCX + e.patrolRange;
+                if (e.x + e.w/2 < minX) { e.x = minX - e.w/2; e.patrolDir = 1; }
+                if (e.x + e.w/2 > maxX) { e.x = maxX - e.w/2; e.patrolDir = -1; }
+            } else if (e.behavior === 'jumper') {
+                e.patrolTimer -= dt;
+                if (e.patrolTimer <= 0) { e.patrolDir *= -1; e.patrolTimer = Math.random()*2+1; }
+                e.x += e.patrolDir * e.speed * dt;
+                var jminX = e.patrolCX - e.patrolRange;
+                var jmaxX = e.patrolCX + e.patrolRange;
+                if (e.x + e.w/2 < jminX) { e.x = jminX - e.w/2; e.patrolDir = 1; }
+                if (e.x + e.w/2 > jmaxX) { e.x = jmaxX - e.w/2; e.patrolDir = -1; }
+                e.jumpTimer -= dt;
+                if (e.jumpTimer <= 0 && e.onGround) {
+                    e.vy = this.JUMP_VEL * 0.6;
+                    e.jumpTimer = 1.5 + Math.random() * 2;
+                }
+            }
+
+            // Walk phase for animation
+            if (e.speed > 0) {
+                e.walkPhase += e.speed * dt * 0.12;
+            }
 
             // Gravity
             e.vy += this.GRAVITY * dt;
             e.y  += e.vy * dt;
             e.onGround = false;
-            for (const pl of this.platforms) {
+            for (var j = 0; j < this.platforms.length; j++) {
+                var pl = this.platforms[j];
                 if (e.vy >= 0 && e.x+e.w > pl.x && e.x < pl.x+pl.w &&
                     e.y+e.h >= pl.y && e.y+e.h - e.vy*dt <= pl.y+8) {
                     e.y = pl.y - e.h; e.vy = 0; e.onGround = true;
@@ -675,6 +723,36 @@ class BattleGameClass {
         }
     }
 
+    drawLimbs(ctx, x, y, w, h, phase, color) {
+        var swing = Math.sin(phase) * 0.5;
+        var armLen = h * 0.28, legLen = h * 0.3;
+        var shoulderY = y + h * 0.38;
+        var hipY = y + h * 0.65;
+        ctx.strokeStyle = color || '#555';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        // Left arm
+        ctx.beginPath();
+        ctx.moveTo(x + w*0.2, shoulderY);
+        ctx.lineTo(x + w*0.2 - Math.sin(swing)*armLen, shoulderY + Math.cos(swing)*armLen);
+        ctx.stroke();
+        // Right arm
+        ctx.beginPath();
+        ctx.moveTo(x + w*0.8, shoulderY);
+        ctx.lineTo(x + w*0.8 + Math.sin(swing)*armLen, shoulderY + Math.cos(swing)*armLen);
+        ctx.stroke();
+        // Left leg
+        ctx.beginPath();
+        ctx.moveTo(x + w*0.35, hipY);
+        ctx.lineTo(x + w*0.35 + Math.sin(swing)*legLen, hipY + Math.cos(swing)*legLen);
+        ctx.stroke();
+        // Right leg
+        ctx.beginPath();
+        ctx.moveTo(x + w*0.65, hipY);
+        ctx.lineTo(x + w*0.65 - Math.sin(swing)*legLen, hipY + Math.cos(swing)*legLen);
+        ctx.stroke();
+    }
+
     drawPlayer() {
         const ctx = this.ctx, p = this.player; if (!p) return;
         if (p.invTimer > 0 && Math.floor(p.invTimer*9)%2===0) return;
@@ -688,6 +766,7 @@ class BattleGameClass {
         if (!p.facingRight) {
             ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
         }
+        this.drawLimbs(ctx, p.x, p.y, p.w, p.h, p.walkPhase, '#667eea');
         if (this.avatarLoaded && this.avatarImg)
             ctx.drawImage(this.avatarImg, p.x-1, p.y, p.w+2, p.h-4);
         else
@@ -720,6 +799,7 @@ class BattleGameClass {
             const pDir = (this.player && this.player.x+this.player.w/2 > cx) ? 1 : -1;
             if (pDir<0) { ctx.translate(cx,0); ctx.scale(-1,1); ctx.translate(-cx,0); }
 
+            this.drawLimbs(ctx, e.x, e.y, e.w, e.h, e.walkPhase || 0, e.color);
             if (e.avatarImg)
                 ctx.drawImage(e.avatarImg, e.x-1, e.y, e.w+2, e.h-4);
             else
