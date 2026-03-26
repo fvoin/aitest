@@ -5,7 +5,7 @@ class BattleGameClass {
         this.PLAYER_SPEED = 200;
         this.JUMP_VEL     = -440;
         this.TOTAL_Q      = 3;
-        this.GH           = 110;  // ground height
+        this.GH           = 110;  // ground depth below ground line
 
         this.canvas = null; this.ctx = null;
         this.animFrame = null; this.isRunning = false;
@@ -16,12 +16,16 @@ class BattleGameClass {
         this.timerInterval = null; this.gameOver = false;
 
         this.player     = null;
-        this.platforms  = [];
+        this.platforms  = [];   // floating platforms only
         this.enemies    = [];
         this.shrapnel   = [];
         this.particles  = [];
         this.scrollX    = 0;
         this.levelEndX  = 0;
+
+        // Heightmap terrain
+        this.groundPoints = []; // [{x, y}] sorted by x
+        this.GROUND_STEP  = 40; // x distance between height samples
 
         this.questions  = [];
         this.controls   = { left:false, right:false, jump:false };
@@ -31,7 +35,7 @@ class BattleGameClass {
 
         this.avatarImg    = null;
         this.avatarLoaded = false;
-        this.savedFriends = []; // collected friend avatar images for HUD
+        this.savedFriends = [];
         this.COLORS = ['#ff6b6b','#ff9f43','#26de81','#45aaf2','#fd79a8','#a29bfe','#00cec9','#e17055'];
     }
 
@@ -92,36 +96,39 @@ class BattleGameClass {
     }
 
     setupControls() {
-        const map = { left:'battle-left-btn', right:'battle-right-btn', jump:'battle-jump-btn' };
-        for (const [key, id] of Object.entries(map)) {
-            const el = document.getElementById(id);
+        var map = { left:'battle-left-btn', right:'battle-right-btn', jump:'battle-jump-btn' };
+        for (var key in map) {
+            var id = map[key];
+            var el = document.getElementById(id);
             if (!el) continue;
-            ['touchstart','mousedown'].forEach(ev =>
-                el.addEventListener(ev, e => { e.preventDefault(); this.controls[key] = true; }, { passive:false })
-            );
-            ['touchend','touchcancel','mouseup'].forEach(ev =>
-                el.addEventListener(ev, () => { this.controls[key] = false; })
-            );
+            (function(k, btn) {
+                ['touchstart','mousedown'].forEach(function(ev) {
+                    btn.addEventListener(ev, function(e) { e.preventDefault(); this.controls[k] = true; }.bind(this), { passive:false });
+                }.bind(this));
+                ['touchend','touchcancel','mouseup'].forEach(function(ev) {
+                    btn.addEventListener(ev, function() { this.controls[k] = false; }.bind(this));
+                }.bind(this));
+            }.bind(this))(key, el);
         }
-        document.addEventListener('keydown', e => {
+        document.addEventListener('keydown', function(e) {
             if (e.key==='ArrowLeft'||e.key==='a') this.controls.left = true;
             if (e.key==='ArrowRight'||e.key==='d') this.controls.right = true;
             if ((e.key==='ArrowUp'||e.key==='w'||e.key===' ')&&!e.repeat) this.controls.jump = true;
-        });
-        document.addEventListener('keyup', e => {
+        }.bind(this));
+        document.addEventListener('keyup', function(e) {
             if (e.key==='ArrowLeft'||e.key==='a') this.controls.left = false;
             if (e.key==='ArrowRight'||e.key==='d') this.controls.right = false;
             if (e.key==='ArrowUp'||e.key==='w'||e.key===' ') this.controls.jump = false;
-        });
+        }.bind(this));
     }
 
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
-        const wrap = document.getElementById('battle-canvas-wrap');
+        var wrap = document.getElementById('battle-canvas-wrap');
         if (!wrap) return;
-        const W = wrap.clientWidth;
-        const H = wrap.clientHeight;
+        var W = wrap.clientWidth;
+        var H = wrap.clientHeight;
         this.canvas.width = W;
         this.canvas.height = H;
         this.W = W;
@@ -131,133 +138,157 @@ class BattleGameClass {
     // ── QUESTIONS ─────────────────────────────────────────────────────────────
 
     makeQuestion() {
-        const g = parseInt(this.grade);
-        const ri = (a,b) => Math.floor(Math.random()*(b-a+1))+a;
-        let text, answer;
-        if (g===1) { const a=ri(1,9),b=ri(1,9); text=`${a} + ${b}`; answer=a+b; }
+        var g = parseInt(this.grade);
+        var ri = function(a,b) { return Math.floor(Math.random()*(b-a+1))+a; };
+        var text, answer;
+        if (g===1) { var a=ri(1,9),b=ri(1,9); text=a+' + '+b; answer=a+b; }
         else if (g===2) {
-            if (Math.random()<0.5) { const a=ri(5,15),b=ri(1,10); text=`${a} + ${b}`; answer=a+b; }
-            else { const a=ri(8,20),b=ri(1,a-1); text=`${a} − ${b}`; answer=a-b; }
-        } else if (g===3) { const a=ri(2,10),b=ri(2,10); text=`${a} × ${b}`; answer=a*b; }
+            if (Math.random()<0.5) { var a2=ri(5,15),b2=ri(1,10); text=a2+' + '+b2; answer=a2+b2; }
+            else { var a3=ri(8,20),b3=ri(1,a3-1); text=a3+' − '+b3; answer=a3-b3; }
+        } else if (g===3) { var a4=ri(2,10),b4=ri(2,10); text=a4+' × '+b4; answer=a4*b4; }
         else if (g===4) {
-            const t=ri(0,2);
-            if (t===0){const a=ri(20,80),b=ri(10,50);text=`${a} + ${b}`;answer=a+b;}
-            else if(t===1){const a=ri(30,100),b=ri(5,25);text=`${a} − ${b}`;answer=a-b;}
-            else{const a=ri(3,12),b=ri(3,12);text=`${a} × ${b}`;answer=a*b;}
-        } else { const a=ri(4,15),b=ri(4,15); text=`${a} × ${b}`; answer=a*b; }
-        return { text, answer, wrongs: this.makeWrongs(answer, 6) };
+            var t=ri(0,2);
+            if (t===0){var a5=ri(20,80),b5=ri(10,50);text=a5+' + '+b5;answer=a5+b5;}
+            else if(t===1){var a6=ri(30,100),b6=ri(5,25);text=a6+' − '+b6;answer=a6-b6;}
+            else{var a7=ri(3,12),b7=ri(3,12);text=a7+' × '+b7;answer=a7*b7;}
+        } else { var a8=ri(4,15),b8=ri(4,15); text=a8+' × '+b8; answer=a8*b8; }
+        return { text: text, answer: answer, wrongs: this.makeWrongs(answer, 6) };
     }
 
     makeWrongs(correct, n) {
-        const set = new Set();
-        const spread = Math.max(5, Math.ceil(Math.abs(correct)*0.28));
-        let tries = 0;
+        var set = new Set();
+        var spread = Math.max(5, Math.ceil(Math.abs(correct)*0.28));
+        var tries = 0;
         while (set.size < n && tries++ < 400) {
-            const d = Math.floor(Math.random()*spread*2)-spread;
-            if (d!==0) { const w=correct+d; if (w>0&&w!==correct) set.add(w); }
+            var d = Math.floor(Math.random()*spread*2)-spread;
+            if (d!==0) { var w=correct+d; if (w>0&&w!==correct) set.add(w); }
         }
-        return [...set];
+        var arr = []; set.forEach(function(v){ arr.push(v); }); return arr;
     }
 
     randomWrongAnswer() {
-        const q = this.questions[this.currentQ];
+        var q = this.questions[this.currentQ];
         return q.wrongs[Math.floor(Math.random() * q.wrongs.length)];
     }
 
-    // ── LEVEL GENERATION ──────────────────────────────────────────────────────
+    // ── HEIGHTMAP TERRAIN ────────────────────────────────────────────────────
+
+    getBaseGroundY() { return this.H - this.GH; }
+
+    generateHeightmap(fromX, toX) {
+        var baseY = this.getBaseGroundY();
+        var step = this.GROUND_STEP;
+        // Start from last point or beginning
+        var startX = fromX;
+        if (this.groundPoints.length > 0) {
+            startX = this.groundPoints[this.groundPoints.length - 1].x + step;
+        } else {
+            // First few points are flat for player spawn
+            for (var fx = fromX; fx < fromX + 200; fx += step) {
+                this.groundPoints.push({ x: fx, y: baseY });
+            }
+            startX = fx;
+        }
+        for (var x = startX; x <= toX; x += step) {
+            // Smooth hills using layered sine waves
+            var hill = Math.sin(x * 0.005) * 40
+                     + Math.sin(x * 0.013 + 2) * 25
+                     + Math.sin(x * 0.031 + 5) * 15;
+            this.groundPoints.push({ x: x, y: baseY - hill });
+        }
+    }
+
+    getGroundYAt(worldX) {
+        var pts = this.groundPoints;
+        if (pts.length === 0) return this.getBaseGroundY();
+        if (worldX <= pts[0].x) return pts[0].y;
+        if (worldX >= pts[pts.length-1].x) return pts[pts.length-1].y;
+        // Binary search for segment
+        var lo = 0, hi = pts.length - 1;
+        while (lo < hi - 1) {
+            var mid = (lo + hi) >> 1;
+            if (pts[mid].x <= worldX) lo = mid; else hi = mid;
+        }
+        var a = pts[lo], b = pts[hi];
+        var t = (worldX - a.x) / (b.x - a.x);
+        return a.y + (b.y - a.y) * t;
+    }
+
+    getGroundSlopeAt(worldX) {
+        var dx = 8;
+        var y1 = this.getGroundYAt(worldX - dx);
+        var y2 = this.getGroundYAt(worldX + dx);
+        return Math.atan2(y2 - y1, dx * 2);
+    }
 
     generateTerrain(fromX, toX) {
-        const GY = this.H - this.GH;
-        let x = fromX;
+        // Generate heightmap
+        this.generateHeightmap(fromX, toX);
 
+        // Floating platforms
+        var x = fromX + 200;
         while (x < toX) {
-            const segLen = 180 + Math.random() * 280;
-
-            // Ground segment
-            this.platforms.push({ x, y: GY, w: segLen, h: this.GH, isGround: true });
-
-            // Maybe floating platform above
-            if (Math.random() < 0.45) {
-                const pw = 120 + Math.random() * 120;
-                const px = x + 45 + Math.random() * (segLen - pw - 30);
-                const py = GY - 120 - Math.random() * 120;
-                this.platforms.push({ x: px, y: py, w: pw, h: 21, isGround: false });
+            if (Math.random() < 0.35) {
+                var gy = this.getGroundYAt(x);
+                var pw = 120 + Math.random() * 120;
+                var py = gy - 120 - Math.random() * 100;
+                this.platforms.push({ x: x, y: py, w: pw, h: 21, isGround: false });
             }
-
-            x += segLen;
-
-            // Gap? (not at the very start)
-            if (x > fromX + 350 && Math.random() < 0.45) {
-                const gapLen = 80 + Math.random() * 80;
-
-                // Sometimes add a stepping stone
-                if (Math.random() < 0.5) {
-                    this.platforms.push({
-                        x: x + gapLen/2 - 45, y: GY - 50 - Math.random()*45,
-                        w: 90 + Math.random()*45, h: 21, isGround: false
-                    });
-                }
-                x += gapLen;
-            }
+            x += 300 + Math.random() * 300;
         }
-        return x;
+        return toX;
     }
 
     spawnEnemiesInRange(fromX, toX) {
-        const q = this.questions[this.currentQ];
+        var q = this.questions[this.currentQ];
         if (!q) return;
-        let x = fromX + 120 + Math.random() * 100;
-        let correctPlaced = false;
+        var x = fromX + 120 + Math.random() * 100;
+        var correctPlaced = false;
 
         while (x < toX - 50) {
-            const surface = this.findSurfaceAt(x);
-            if (surface) {
-                // ~25% correct, but ensure at least one per batch
-                const makeCorrect = !correctPlaced && (x > toX - 300 || Math.random() < 0.25);
-                const answer = makeCorrect ? q.answer : this.randomWrongAnswer();
-                const sp = { x, y: surface.y };
-                this.enemies.push(this.createEnemy(sp, answer, makeCorrect));
-                if (makeCorrect) correctPlaced = true;
-            }
+            var gy = this.getGroundYAt(x);
+            var makeCorrect = !correctPlaced && (x > toX - 300 || Math.random() < 0.25);
+            var answer = makeCorrect ? q.answer : this.randomWrongAnswer();
+            this.enemies.push(this.createEnemy({ x: x, y: gy }, answer, makeCorrect));
+            if (makeCorrect) correctPlaced = true;
             x += 160 + Math.random() * 220;
         }
 
-        // Guarantee at least one correct enemy if none placed
         if (!correctPlaced) {
-            const bx = fromX + 200 + Math.random() * (toX - fromX - 400);
-            const surface = this.findSurfaceAt(bx) || { y: this.H - this.GH };
-            this.enemies.push(this.createEnemy({ x: bx, y: surface.y }, q.answer, true));
+            var bx = fromX + 200 + Math.random() * (toX - fromX - 400);
+            var bgy = this.getGroundYAt(bx);
+            this.enemies.push(this.createEnemy({ x: bx, y: bgy }, q.answer, true));
         }
     }
 
     findSurfaceAt(worldX) {
-        for (const p of this.platforms) {
-            if (worldX >= p.x && worldX <= p.x + p.w) return { y: p.y };
-        }
-        return null;
+        return { y: this.getGroundYAt(worldX) };
     }
 
     extendLevel() {
-        const aheadNeeded = this.scrollX + this.W * 3;
+        var aheadNeeded = this.scrollX + this.W * 3;
         if (this.levelEndX < aheadNeeded) {
-            const oldEnd = this.levelEndX;
+            var oldEnd = this.levelEndX;
             this.levelEndX = this.generateTerrain(this.levelEndX, aheadNeeded);
             this.spawnEnemiesInRange(oldEnd, this.levelEndX);
         }
     }
 
     cleanupLevel() {
-        const cutoff = this.scrollX - this.W;
-        this.platforms = this.platforms.filter(p => p.x + p.w > cutoff);
-        this.enemies   = this.enemies.filter(e => e.x + e.w > cutoff - 100);
-        this.shrapnel  = this.shrapnel.filter(s => s.x > cutoff - 200);
+        var cutoff = this.scrollX - this.W;
+        this.platforms = this.platforms.filter(function(p) { return p.x + p.w > cutoff; });
+        this.enemies   = this.enemies.filter(function(e) { return e.x + e.w > cutoff - 100; });
+        this.shrapnel  = this.shrapnel.filter(function(s) { return s.x > cutoff - 200; });
+        // Clean old ground points
+        while (this.groundPoints.length > 2 && this.groundPoints[1].x < cutoff) {
+            this.groundPoints.shift();
+        }
     }
 
     // ── ENEMY ─────────────────────────────────────────────────────────────────
 
     createEnemy(sp, answer, isCorrect) {
-        const EW = 63, EH = 84;
-        // Pick a random behavior
+        var EW = 63, EH = 84;
         var r = Math.random();
         var behavior, speed, patrolRange, jumpTimer;
         if (r < 0.15)       { behavior = 'stand';     speed = 0;   patrolRange = 0;   }
@@ -267,7 +298,6 @@ class BattleGameClass {
         else if (r < 0.75)  { behavior = 'jumper';    speed = 30 + Math.random()*20;  patrolRange = 60;  jumpTimer = 1 + Math.random()*2; }
         else                { behavior = 'patrol';    speed = 45;  patrolRange = 75;  }
         var dir = Math.random()<0.5 ? 1 : -1;
-        // walk goes one direction only
         if (behavior === 'walk') dir = 1;
         var enemy = {
             x: sp.x - EW/2, y: sp.y - EH,
@@ -295,6 +325,7 @@ class BattleGameClass {
         this.lives = 3; this.questionsCompleted = 0; this.currentQ = 0;
         this.enemies = []; this.platforms = [];
         this.shrapnel = []; this.particles = [];
+        this.groundPoints = [];
         this.savedFriends = [];
         this.flyingFriends = [];
         this.gameOver = false; this.jumpConsumed = false;
@@ -302,22 +333,19 @@ class BattleGameClass {
 
         this.questions = Array.from({ length: this.TOTAL_Q }, () => this.makeQuestion());
 
-        // Wait for player avatar before first frame
         await this.loadAvatar();
-
-        // Wait for layout to settle before measuring
-        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+        await new Promise(function(r) { requestAnimationFrame(function() { requestAnimationFrame(r); }); });
         this.resizeCanvas();
 
-        // Generate initial level
         this.levelEndX = this.generateTerrain(0, this.W * 4);
         this.spawnEnemiesInRange(this.W * 0.5, this.levelEndX);
 
+        var startY = this.getGroundYAt(80);
         this.player = {
-            x: 80, y: this.H - this.GH - 87,
+            x: 80, y: startY - 87,
             w: 54, h: 87, vx: 0, vy: 0,
             onGround: true, facingRight: true, invTimer: 0,
-            prevY: this.H - this.GH - 87, walkPhase: 0,
+            prevY: startY - 87, walkPhase: 0,
         };
         this.airJumpUsed = false;
         this.flipAngle = 0;
@@ -326,11 +354,11 @@ class BattleGameClass {
         if (timer > 0) {
             this.updateTimerDisplay();
             document.getElementById('battle-timer-display').style.display = 'block';
-            this.timerInterval = setInterval(() => {
+            this.timerInterval = setInterval(function() {
                 this.timerRemaining--;
                 this.updateTimerDisplay();
                 if (this.timerRemaining <= 0) { clearInterval(this.timerInterval); this.endGame(false); }
-            }, 1000);
+            }.bind(this), 1000);
         } else {
             document.getElementById('battle-timer-display').style.display = 'none';
         }
@@ -346,11 +374,11 @@ class BattleGameClass {
 
     loop(ts) {
         if (!this.isRunning) return;
-        const dt = Math.min((ts - this.lastTime)/1000, 0.05);
+        var dt = Math.min((ts - this.lastTime)/1000, 0.05);
         this.lastTime = ts;
         this.update(dt);
         this.render();
-        this.animFrame = requestAnimationFrame(t => this.loop(t));
+        this.animFrame = requestAnimationFrame(function(t) { this.loop(t); }.bind(this));
     }
 
     update(dt) {
@@ -364,16 +392,14 @@ class BattleGameClass {
         this.extendLevel();
         this.cleanupLevel();
 
-        // Smooth camera follow (lerp)
-        const targetX = Math.max(0, this.player.x - this.W * 0.35);
+        var targetX = Math.max(0, this.player.x - this.W * 0.35);
         this.scrollX += (targetX - this.scrollX) * 0.1;
     }
 
     // ── PLAYER ────────────────────────────────────────────────────────────────
 
     updatePlayer(dt) {
-        const p = this.player; if (!p) return;
-
+        var p = this.player; if (!p) return;
         p.prevY = p.y;
 
         if      (this.controls.left)  { p.vx = -this.PLAYER_SPEED; p.facingRight = false; }
@@ -390,12 +416,11 @@ class BattleGameClass {
                 p.vy = this.JUMP_VEL * 0.85;
                 this.airJumpUsed = true;
                 this.jumpConsumed = true;
-                this.flipAngle = 0.01; // start backflip
+                this.flipAngle = 0.01;
             }
         }
         if (!this.controls.jump) this.jumpConsumed = false;
 
-        // Animate backflip
         if (this.flipAngle > 0 && this.flipAngle < Math.PI * 2) {
             this.flipAngle += 14 * dt;
             if (this.flipAngle >= Math.PI * 2) this.flipAngle = 0;
@@ -406,19 +431,32 @@ class BattleGameClass {
         p.y  += p.vy * dt;
         if (p.x < 0) p.x = 0;
 
+        // Ground collision via heightmap
         p.onGround = false;
-        for (const pl of this.platforms) {
+        var groundY = this.getGroundYAt(p.x + p.w/2);
+        if (p.vy >= 0 && p.y + p.h >= groundY) {
+            p.y = groundY - p.h;
+            p.vy = 0;
+            p.onGround = true;
+            this.airJumpUsed = false;
+            this.flipAngle = 0;
+        }
+
+        // Floating platform collision
+        for (var i = 0; i < this.platforms.length; i++) {
+            var pl = this.platforms[i];
             if (p.vy >= 0 && p.x+p.w > pl.x && p.x < pl.x+pl.w &&
                 p.y+p.h >= pl.y && p.y+p.h - p.vy*dt <= pl.y + 8) {
-                p.y = pl.y - p.h; p.vy = 0; p.onGround = true; this.airJumpUsed = false; this.flipAngle = 0;
+                p.y = pl.y - p.h; p.vy = 0; p.onGround = true;
+                this.airJumpUsed = false; this.flipAngle = 0;
             }
         }
 
         // Fell into pit — respawn without penalty
         if (p.y > this.H + 40) {
-            const rx = p.x + 60;
-            const surf = this.findSurfaceAt(rx) || this.findSurfaceAt(rx+100) || { y: this.H - this.GH };
-            p.x = rx; p.y = surf.y - p.h; p.vy = 0;
+            var rx = p.x + 60;
+            var gy = this.getGroundYAt(rx);
+            p.x = rx; p.y = gy - p.h; p.vy = 0;
         }
 
         if (p.invTimer > 0) p.invTimer -= dt;
@@ -438,9 +476,8 @@ class BattleGameClass {
             var e = this.enemies[i];
             if (!e.alive) continue;
 
-            // Movement based on behavior
             if (e.behavior === 'stand') {
-                // no movement
+                // no horizontal movement
             } else if (e.behavior === 'walk') {
                 e.x += e.patrolDir * e.speed * dt;
             } else if (e.behavior === 'patrol' || e.behavior === 'slow' || e.behavior === 'run') {
@@ -466,15 +503,22 @@ class BattleGameClass {
                 }
             }
 
-            // Walk phase for animation
-            if (e.speed > 0) {
-                e.walkPhase += e.speed * dt * 0.12;
-            }
+            if (e.speed > 0) e.walkPhase += e.speed * dt * 0.12;
 
             // Gravity
             e.vy += this.GRAVITY * dt;
             e.y  += e.vy * dt;
+
+            // Ground collision via heightmap
             e.onGround = false;
+            var eGroundY = this.getGroundYAt(e.x + e.w/2);
+            if (e.vy >= 0 && e.y + e.h >= eGroundY) {
+                e.y = eGroundY - e.h;
+                e.vy = 0;
+                e.onGround = true;
+            }
+
+            // Floating platform collision
             for (var j = 0; j < this.platforms.length; j++) {
                 var pl = this.platforms[j];
                 if (e.vy >= 0 && e.x+e.w > pl.x && e.x < pl.x+pl.w &&
@@ -482,81 +526,76 @@ class BattleGameClass {
                     e.y = pl.y - e.h; e.vy = 0; e.onGround = true;
                 }
             }
-            // Remove if fell off
+
             if (e.y > this.H + 80) e.alive = false;
         }
     }
 
     updateShrapnel(dt) {
-        for (const s of this.shrapnel) {
+        for (var i = 0; i < this.shrapnel.length; i++) {
+            var s = this.shrapnel[i];
             s.x+=s.vx*dt; s.y+=s.vy*dt;
             s.vy+=this.GRAVITY*0.2*dt; s.vx*=0.995; s.life-=dt;
         }
-        this.shrapnel = this.shrapnel.filter(s => s.life > 0);
+        this.shrapnel = this.shrapnel.filter(function(s) { return s.life > 0; });
     }
 
     updateParticles(dt) {
-        for (const p of this.particles) {
+        for (var i = 0; i < this.particles.length; i++) {
+            var p = this.particles[i];
             p.x+=p.vx*dt; p.y+=p.vy*dt; p.life-=dt; p.alpha=p.life/p.maxLife;
         }
-        this.particles = this.particles.filter(p => p.life > 0);
+        this.particles = this.particles.filter(function(p) { return p.life > 0; });
     }
 
     updateFlyingFriends(dt) {
-        for (const f of this.flyingFriends) {
+        for (var i = 0; i < this.flyingFriends.length; i++) {
+            var f = this.flyingFriends[i];
             f.t += dt * 1.8;
             if (f.t >= 1) { f.t = 1; f.done = true; }
-            const t = f.t;
-            // Ease out cubic
-            const ease = 1 - Math.pow(1 - t, 3);
+            var t = f.t;
+            var ease = 1 - Math.pow(1 - t, 3);
             f.curX = f.startX + (f.targetX - f.startX) * ease;
             f.curY = f.startY + (f.targetY - f.startY) * ease - Math.sin(t * Math.PI) * 60;
             f.curScale = 1 - ease * 0.4;
             f.curAlpha = t < 0.8 ? 1 : 1 - (t - 0.8) / 0.2 * 0.3;
         }
-        const justLanded = this.flyingFriends.filter(f => f.done);
-        this.flyingFriends = this.flyingFriends.filter(f => !f.done);
-        for (const f of justLanded) {
-            this.savedFriends.push(f.img);
+        var justLanded = this.flyingFriends.filter(function(f) { return f.done; });
+        this.flyingFriends = this.flyingFriends.filter(function(f) { return !f.done; });
+        for (var j = 0; j < justLanded.length; j++) {
+            this.savedFriends.push(justLanded[j].img);
         }
     }
 
     // ── COLLISION ─────────────────────────────────────────────────────────────
 
     checkCollisions() {
-        const p = this.player;
+        var p = this.player;
         if (!p || p.invTimer > 0) return;
 
-        // Shrink hitboxes inward for fairer detection
-        const px = p.x + 5, py = p.y + 3, pw = p.w - 10, ph = p.h - 3;
+        var px = p.x + 5, py = p.y + 3, pw = p.w - 10, ph = p.h - 3;
 
-        for (const e of this.enemies) {
+        for (var i = 0; i < this.enemies.length; i++) {
+            var e = this.enemies[i];
             if (!e.alive) continue;
-            const ex = e.x + 5, ey = e.y + 4, ew = e.w - 10, eh = e.h - 4;
+            var ex = e.x + 5, ey = e.y + 4, ew = e.w - 10, eh = e.h - 4;
 
-            // AABB overlap
             if (!(px+pw > ex && px < ex+ew && py+ph > ey && py < ey+eh)) continue;
 
-            // Stomp: player falling AND feet were above enemy upper third last frame
-            const prevFeetY = p.prevY + p.h;
+            var prevFeetY = p.prevY + p.h;
             if (p.vy > 0 && prevFeetY <= e.y + e.h * 0.35) {
                 p.vy = this.JUMP_VEL * 0.55;
                 if (e.isCorrect) {
-                    // Stomped a friend — lose a life!
                     this.onStompFriend(e);
                 } else {
-                    // Stomped a wrong enemy — kill it
                     e.alive = false;
                     this.onStompWrong(e);
                 }
             } else {
-                // Side hit
                 if (e.isCorrect) {
-                    // Found a friend — save them!
                     this.onSaveFriend(e);
                     p.vy = this.JUMP_VEL * 0.25;
                 } else {
-                    // Hit by wrong enemy — lose a life + knockback
                     this.playerHit();
                     p.vy = this.JUMP_VEL * 0.35;
                     p.vx = (p.x < e.x) ? -280 : 280;
@@ -565,66 +604,55 @@ class BattleGameClass {
             break;
         }
 
-        // Shrapnel is visual-only, no player damage
-
-        this.enemies = this.enemies.filter(e => e.alive);
+        this.enemies = this.enemies.filter(function(e) { return e.alive; });
     }
 
     onStompFriend(e) {
-        // Stomping a friend (correct answer) — you lose a life
         e.alive = false;
         this.spawnParticles(e.x+e.w/2, e.y+e.h/2, '#ff3300', '#ff6600', 20);
         this.playerHit();
     }
 
     onSaveFriend(e) {
-        // Side-hit correct answer — save the friend!
         e.alive = false;
-
-        // Thank-you particles (green/gold)
         this.spawnParticles(e.x+e.w/2, e.y+e.h/2, '#4CAF50', '#FFD700', 20);
-
-        // Start fly-to-HUD animation
-        const hudIdx = this.savedFriends.length + this.flyingFriends.length;
-        const targetX = 10 + hudIdx * 56;
-        const targetY = this.getHUDTopY();
+        var hudIdx = this.savedFriends.length + this.flyingFriends.length;
+        var targetX = 10 + hudIdx * 56;
+        var targetY = this.getHUDTopY();
         this.flyingFriends.push({
             img: e.avatarImg,
-            startX: e.x - this.scrollX,
-            startY: e.y,
-            targetX, targetY,
+            startX: e.x - this.scrollX, startY: e.y,
+            targetX: targetX, targetY: targetY,
             curX: e.x - this.scrollX, curY: e.y,
-            curScale: 1, curAlpha: 1,
-            t: 0, done: false,
+            curScale: 1, curAlpha: 1, t: 0, done: false,
         });
-
         this.questionsCompleted++;
         if (this.questionsCompleted >= this.TOTAL_Q) {
-            setTimeout(() => this.endGame(true), 600);
+            setTimeout(function() { this.endGame(true); }.bind(this), 600);
             return;
         }
         this.currentQ++;
-        // Mark all old correct enemies as wrong
-        this.enemies.forEach(en => {
+        for (var i = 0; i < this.enemies.length; i++) {
+            var en = this.enemies[i];
             if (en.alive && en.isCorrect) {
                 en.isCorrect = false;
                 en.answer = this.randomWrongAnswer();
             }
-        });
+        }
     }
 
     onStompWrong(e) {
-        const cx = e.x+e.w/2, cy = e.y+e.h/2;
+        var cx = e.x+e.w/2, cy = e.y+e.h/2;
         this.spawnParticles(cx, cy, '#ff9500', '#ffcc00', 45);
         this.spawnParticles(cx, cy, '#ff3300', '#ff6600', 30);
         this.spawnShrapnel(cx, cy, 30);
     }
 
     spawnParticles(cx, cy, c1, c2, n) {
-        for (let i=0; i<n; i++) {
-            const ang=(i/n)*Math.PI*2+Math.random()*0.5;
-            const spd=80+Math.random()*150;
-            const ml=0.5+Math.random()*0.3;
+        for (var i=0; i<n; i++) {
+            var ang=(i/n)*Math.PI*2+Math.random()*0.5;
+            var spd=80+Math.random()*150;
+            var ml=0.5+Math.random()*0.3;
             this.particles.push({
                 x:cx,y:cy,vx:Math.cos(ang)*spd,vy:Math.sin(ang)*spd-40,
                 r:3+Math.random()*4,color:Math.random()<0.5?c1:c2,
@@ -634,14 +662,14 @@ class BattleGameClass {
     }
 
     spawnShrapnel(cx, cy, n) {
-        for (let i=0; i<n; i++) {
-            const ang=Math.random()*Math.PI*2;
-            const spd=350+Math.random()*500;
+        for (var i=0; i<n; i++) {
+            var ang=Math.random()*Math.PI*2;
+            var spd=350+Math.random()*500;
             this.shrapnel.push({
                 x:cx,y:cy,
                 vx:Math.cos(ang)*spd, vy:Math.sin(ang)*spd-200,
                 r:4+Math.random()*7,
-                color:`hsl(${10+Math.random()*40},95%,${45+Math.random()*20}%)`,
+                color:'hsl('+(10+Math.random()*40)+',95%,'+(45+Math.random()*20)+'%)',
                 life:3+Math.random()*2.5
             });
         }
@@ -658,11 +686,12 @@ class BattleGameClass {
     // ── RENDER ────────────────────────────────────────────────────────────────
 
     render() {
-        const ctx = this.ctx; if (!ctx) return;
+        var ctx = this.ctx; if (!ctx) return;
         ctx.clearRect(0, 0, this.W, this.H);
         this.drawBG();
         ctx.save();
         ctx.translate(-this.scrollX, 0);
+        this.drawGround();
         this.drawPlatforms();
         this.drawShrapnelWorld();
         this.drawEnemies();
@@ -670,23 +699,21 @@ class BattleGameClass {
         this.drawParticlesWorld();
         this.drawQuestion();
         ctx.restore();
-        // HUD (screen-space, drawn after ctx.restore)
         this.drawFriendsHUD();
         this.drawFlyingFriends();
     }
 
     drawBG() {
-        const ctx = this.ctx;
-        const g = ctx.createLinearGradient(0,0,0,this.H);
+        var ctx = this.ctx;
+        var g = ctx.createLinearGradient(0,0,0,this.H);
         g.addColorStop(0,'#87CEEB'); g.addColorStop(1,'#cde9ff');
         ctx.fillStyle = g; ctx.fillRect(0,0,this.W,this.H);
-        // Parallax clouds
         ctx.fillStyle = 'rgba(255,255,255,0.72)';
-        const ox = this.scrollX * 0.15;
-        for (let i = 0; i < 6; i++) {
-            const cx = (i * 220 + 80 - ox % 1320 + 1320) % 1320 - 60;
-            const cy = 20 + (i%3) * 25 + Math.sin(i*1.7)*15;
-            const sz = 36 + (i%3)*12;
+        var ox = this.scrollX * 0.15;
+        for (var i = 0; i < 6; i++) {
+            var cx = (i * 220 + 80 - ox % 1320 + 1320) % 1320 - 60;
+            var cy = 20 + (i%3) * 25 + Math.sin(i*1.7)*15;
+            var sz = 36 + (i%3)*12;
             this.drawCloud(ctx, cx, cy, sz);
         }
     }
@@ -700,61 +727,107 @@ class BattleGameClass {
         ctx.fill();
     }
 
-    drawPlatforms() {
-        const ctx = this.ctx;
-        const lo = this.scrollX - 50, hi = this.scrollX + this.W + 50;
-        for (const pl of this.platforms) {
-            if (pl.x + pl.w < lo || pl.x > hi) continue;
-            if (pl.isGround) {
-                // Draw with 1px overlap to hide seams between segments
-                ctx.fillStyle = '#7a5230';
-                ctx.fillRect(pl.x-1, pl.y, pl.w+2, pl.h);
-                ctx.fillStyle = '#5a9e6e';
-                ctx.fillRect(pl.x-1, pl.y, pl.w+2, 15);
-                ctx.fillStyle = '#3d7a50';
-                for (let gx = 10; gx < pl.w; gx += 20)
-                    ctx.fillRect(pl.x+gx, pl.y-7, 4, 9);
-            } else {
-                ctx.fillStyle = '#8B6914';
-                bRR(ctx, pl.x, pl.y, pl.w, pl.h, 7); ctx.fill();
-                ctx.fillStyle = 'rgba(255,255,255,0.22)';
-                ctx.fillRect(pl.x+5, pl.y+3, pl.w-10, 4);
+    drawGround() {
+        var ctx = this.ctx;
+        var pts = this.groundPoints;
+        if (pts.length < 2) return;
+        var lo = this.scrollX - 50;
+        var hi = this.scrollX + this.W + 50;
+        var bottom = this.H + 20;
+
+        // Find visible range
+        var startIdx = 0, endIdx = pts.length - 1;
+        for (var i = 0; i < pts.length; i++) {
+            if (pts[i].x >= lo) { startIdx = Math.max(0, i - 1); break; }
+        }
+        for (var j = pts.length - 1; j >= 0; j--) {
+            if (pts[j].x <= hi) { endIdx = Math.min(pts.length - 1, j + 1); break; }
+        }
+
+        // Draw dirt fill
+        ctx.beginPath();
+        ctx.moveTo(pts[startIdx].x, bottom);
+        for (var k = startIdx; k <= endIdx; k++) {
+            ctx.lineTo(pts[k].x, pts[k].y);
+        }
+        ctx.lineTo(pts[endIdx].x, bottom);
+        ctx.closePath();
+        ctx.fillStyle = '#7a5230';
+        ctx.fill();
+
+        // Draw grass strip on top
+        ctx.beginPath();
+        for (var m = startIdx; m <= endIdx; m++) {
+            if (m === startIdx) ctx.moveTo(pts[m].x, pts[m].y);
+            else ctx.lineTo(pts[m].x, pts[m].y);
+        }
+        ctx.strokeStyle = '#5a9e6e';
+        ctx.lineWidth = 16;
+        ctx.stroke();
+
+        // Grass tufts
+        ctx.fillStyle = '#3d7a50';
+        for (var n = startIdx; n <= endIdx; n++) {
+            if (n % 2 === 0) {
+                ctx.fillRect(pts[n].x - 2, pts[n].y - 8, 4, 10);
             }
         }
     }
 
-    drawLimbs(ctx, x, y, w, h, phase, color) {
-        var swing = Math.sin(phase) * 0.5;
-        var armLen = h * 0.28, legLen = h * 0.3;
-        var shoulderY = y + h * 0.38;
-        var hipY = y + h * 0.65;
-        ctx.strokeStyle = color || '#555';
-        ctx.lineWidth = 4;
-        ctx.lineCap = 'round';
-        // Left arm
+    drawPlatforms() {
+        var ctx = this.ctx;
+        var lo = this.scrollX - 50, hi = this.scrollX + this.W + 50;
+        for (var i = 0; i < this.platforms.length; i++) {
+            var pl = this.platforms[i];
+            if (pl.x + pl.w < lo || pl.x > hi) continue;
+            ctx.fillStyle = '#8B6914';
+            bRR(ctx, pl.x, pl.y, pl.w, pl.h, 7); ctx.fill();
+            ctx.fillStyle = 'rgba(255,255,255,0.22)';
+            ctx.fillRect(pl.x+5, pl.y+3, pl.w-10, 4);
+        }
+    }
+
+    // ── WALK ANIMATION (split-body) ──────────────────────────────────────────
+
+    drawAnimatedSprite(ctx, img, x, y, w, h, walkPhase, slope) {
+        if (!img) return;
+        var swing = Math.sin(walkPhase) * 0.15; // rotation amount
+        var halfH = h / 2;
+        var cx = x + w/2;
+
+        // Lean into slope
+        ctx.save();
+        ctx.translate(cx, y + h);
+        ctx.rotate(slope * 0.5);
+        ctx.translate(-cx, -(y + h));
+
+        // Upper body — slight counter-swing
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(x + w*0.2, shoulderY);
-        ctx.lineTo(x + w*0.2 - Math.sin(swing)*armLen, shoulderY + Math.cos(swing)*armLen);
-        ctx.stroke();
-        // Right arm
+        ctx.rect(x - 10, y - 10, w + 20, halfH + 10);
+        ctx.clip();
+        ctx.translate(cx, y + halfH);
+        ctx.rotate(-swing * 0.6);
+        ctx.translate(-cx, -(y + halfH));
+        ctx.drawImage(img, x-1, y, w+2, h-4);
+        ctx.restore();
+
+        // Lower body — swing legs
+        ctx.save();
         ctx.beginPath();
-        ctx.moveTo(x + w*0.8, shoulderY);
-        ctx.lineTo(x + w*0.8 + Math.sin(swing)*armLen, shoulderY + Math.cos(swing)*armLen);
-        ctx.stroke();
-        // Left leg
-        ctx.beginPath();
-        ctx.moveTo(x + w*0.35, hipY);
-        ctx.lineTo(x + w*0.35 + Math.sin(swing)*legLen, hipY + Math.cos(swing)*legLen);
-        ctx.stroke();
-        // Right leg
-        ctx.beginPath();
-        ctx.moveTo(x + w*0.65, hipY);
-        ctx.lineTo(x + w*0.65 - Math.sin(swing)*legLen, hipY + Math.cos(swing)*legLen);
-        ctx.stroke();
+        ctx.rect(x - 10, y + halfH, w + 20, halfH + 10);
+        ctx.clip();
+        ctx.translate(cx, y + halfH);
+        ctx.rotate(swing);
+        ctx.translate(-cx, -(y + halfH));
+        ctx.drawImage(img, x-1, y, w+2, h-4);
+        ctx.restore();
+
+        ctx.restore();
     }
 
     drawPlayer() {
-        const ctx = this.ctx, p = this.player; if (!p) return;
+        var ctx = this.ctx, p = this.player; if (!p) return;
         if (p.invTimer > 0 && Math.floor(p.invTimer*9)%2===0) return;
         ctx.save();
         var cx = p.x + p.w/2, cy = p.y + p.h/2;
@@ -766,16 +839,17 @@ class BattleGameClass {
         if (!p.facingRight) {
             ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
         }
-        this.drawLimbs(ctx, p.x, p.y, p.w, p.h, p.walkPhase, '#667eea');
-        if (this.avatarLoaded && this.avatarImg)
-            ctx.drawImage(this.avatarImg, p.x-1, p.y, p.w+2, p.h-4);
-        else
+        var slope = p.onGround ? this.getGroundSlopeAt(p.x + p.w/2) : 0;
+        if (this.avatarLoaded && this.avatarImg) {
+            this.drawAnimatedSprite(ctx, this.avatarImg, p.x, p.y, p.w, p.h, p.walkPhase, slope);
+        } else {
             this.drawFallback(ctx, p.x, p.y, p.w, p.h, '#667eea');
+        }
         ctx.restore();
     }
 
     drawFallback(ctx, x, y, w, h, col) {
-        const cx = x+w/2;
+        var cx = x+w/2;
         ctx.fillStyle = col;
         bRR(ctx, x+4, y+h*0.35, w-8, h*0.4, 4); ctx.fill();
         ctx.fillStyle = '#FFD0A8';
@@ -788,44 +862,45 @@ class BattleGameClass {
     }
 
     drawEnemies() {
-        const ctx = this.ctx;
-        const lo = this.scrollX-60, hi = this.scrollX+this.W+60;
-        for (const e of this.enemies) {
+        var ctx = this.ctx;
+        var lo = this.scrollX-60, hi = this.scrollX+this.W+60;
+        for (var i = 0; i < this.enemies.length; i++) {
+            var e = this.enemies[i];
             if (!e.alive || e.x+e.w < lo || e.x > hi) continue;
-            const cx = e.x+e.w/2;
+            var ecx = e.x+e.w/2;
 
             ctx.save();
-            // Face toward player
-            const pDir = (this.player && this.player.x+this.player.w/2 > cx) ? 1 : -1;
-            if (pDir<0) { ctx.translate(cx,0); ctx.scale(-1,1); ctx.translate(-cx,0); }
+            var pDir = (this.player && this.player.x+this.player.w/2 > ecx) ? 1 : -1;
+            if (pDir<0) { ctx.translate(ecx,0); ctx.scale(-1,1); ctx.translate(-ecx,0); }
 
-            this.drawLimbs(ctx, e.x, e.y, e.w, e.h, e.walkPhase || 0, e.color);
-            if (e.avatarImg)
-                ctx.drawImage(e.avatarImg, e.x-1, e.y, e.w+2, e.h-4);
-            else
+            var eslope = e.onGround ? this.getGroundSlopeAt(ecx) : 0;
+            if (e.avatarImg) {
+                this.drawAnimatedSprite(ctx, e.avatarImg, e.x, e.y, e.w, e.h, e.walkPhase || 0, eslope);
+            } else {
                 this.drawFallback(ctx, e.x, e.y, e.w, e.h, e.color);
+            }
             ctx.restore();
 
             // Answer label
-            const ans = String(e.answer);
+            var ans = String(e.answer);
             ctx.font = 'bold 19px Arial';
-            const tw = ctx.measureText(ans).width;
-            const lw=tw+22, lh=30, lx=cx-lw/2, ly=e.y-lh-7;
+            var tw = ctx.measureText(ans).width;
+            var lw=tw+22, lh=30, lx=ecx-lw/2, ly=e.y-lh-7;
             ctx.fillStyle = 'rgba(25,25,45,0.88)';
             bRR(ctx, lx, ly, lw, lh, 9); ctx.fill();
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-            ctx.fillText(ans, cx, ly+lh-8);
+            ctx.fillText(ans, ecx, ly+lh-8);
         }
     }
 
     drawQuestion() {
         if (!this.player || this.questionsCompleted >= this.TOTAL_Q) return;
-        const q = this.questions[this.currentQ]; if (!q) return;
-        const ctx = this.ctx, p = this.player, text = q.text;
+        var q = this.questions[this.currentQ]; if (!q) return;
+        var ctx = this.ctx, p = this.player, text = q.text;
         ctx.font = 'bold 22px Arial';
-        const tw = ctx.measureText(text).width;
-        const bw=tw+28, bh=36;
-        const bx=p.x+p.w/2-bw/2, by=p.y-bh-18;
+        var tw = ctx.measureText(text).width;
+        var bw=tw+28, bh=36;
+        var bx=p.x+p.w/2-bw/2, by=p.y-bh-18;
         ctx.fillStyle = 'rgba(255,255,255,0.96)';
         ctx.strokeStyle = '#667eea'; ctx.lineWidth = 2;
         bRR(ctx, bx, by, bw, bh, 10); ctx.fill(); ctx.stroke();
@@ -840,8 +915,9 @@ class BattleGameClass {
     }
 
     drawShrapnelWorld() {
-        const ctx = this.ctx;
-        for (const s of this.shrapnel) {
+        var ctx = this.ctx;
+        for (var i = 0; i < this.shrapnel.length; i++) {
+            var s = this.shrapnel[i];
             ctx.globalAlpha = Math.min(1, s.life/1.2);
             ctx.fillStyle = s.color;
             ctx.save(); ctx.translate(s.x, s.y); ctx.rotate(s.x*0.06);
@@ -853,8 +929,9 @@ class BattleGameClass {
     }
 
     drawParticlesWorld() {
-        const ctx = this.ctx;
-        for (const p of this.particles) {
+        var ctx = this.ctx;
+        for (var i = 0; i < this.particles.length; i++) {
+            var p = this.particles[i];
             ctx.globalAlpha = Math.max(0, p.alpha);
             ctx.fillStyle = p.color;
             ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI*2); ctx.fill();
@@ -863,16 +940,16 @@ class BattleGameClass {
     }
 
     getHUDTopY() {
-        const hdr = document.getElementById('battle-header');
+        var hdr = document.getElementById('battle-header');
         return (hdr ? hdr.offsetHeight : 40) + 6;
     }
 
     drawFriendsHUD() {
-        const ctx = this.ctx;
-        const size = 48;
-        const topY = this.getHUDTopY();
-        for (let i = 0; i < this.savedFriends.length; i++) {
-            const x = 10 + i * 56;
+        var ctx = this.ctx;
+        var size = 48;
+        var topY = this.getHUDTopY();
+        for (var i = 0; i < this.savedFriends.length; i++) {
+            var x = 10 + i * 56;
             ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
             ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2;
@@ -881,27 +958,27 @@ class BattleGameClass {
                 ctx.drawImage(this.savedFriends[i], x, topY, size, size);
             }
         }
-        // Draw empty slots for remaining friends
-        for (let i = this.savedFriends.length; i < this.TOTAL_Q; i++) {
-            const x = 10 + i * 56;
+        for (var j = this.savedFriends.length; j < this.TOTAL_Q; j++) {
+            var x2 = 10 + j * 56;
             ctx.fillStyle = 'rgba(200, 200, 200, 0.25)';
-            ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x2 + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x2 + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
             ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
             ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('?', x + size/2, topY + size/2 + 8);
+            ctx.fillText('?', x2 + size/2, topY + size/2 + 8);
         }
     }
 
     drawFlyingFriends() {
-        const ctx = this.ctx;
-        const size = 48;
-        for (const f of this.flyingFriends) {
+        var ctx = this.ctx;
+        var size = 48;
+        for (var i = 0; i < this.flyingFriends.length; i++) {
+            var f = this.flyingFriends[i];
             ctx.save();
             ctx.globalAlpha = f.curAlpha;
-            const s = f.curScale;
-            const drawSize = size * s;
+            var s = f.curScale;
+            var drawSize = size * s;
             if (f.img) {
                 ctx.drawImage(f.img, f.curX - drawSize/2, f.curY - drawSize/2, drawSize, drawSize);
             }
@@ -912,11 +989,11 @@ class BattleGameClass {
     // ── UI ────────────────────────────────────────────────────────────────────
 
     updateLivesDisplay() {
-        const el = document.getElementById('battle-lives');
+        var el = document.getElementById('battle-lives');
         if (el) el.innerHTML = '❤️'.repeat(Math.max(0,this.lives))+'🖤'.repeat(Math.max(0,3-this.lives));
     }
     updateTimerDisplay() {
-        const el = document.getElementById('battle-timer-display');
+        var el = document.getElementById('battle-timer-display');
         if (el) el.textContent = this.timerRemaining+'s';
     }
 
@@ -927,7 +1004,7 @@ class BattleGameClass {
         if (this.timerInterval) clearInterval(this.timerInterval);
         this.controls = { left:false, right:false, jump:false };
         if (typeof app !== 'undefined')
-            setTimeout(() => app.showBattleResults(this.questionsCompleted, this.TOTAL_Q, won), 420);
+            setTimeout(function() { app.showBattleResults(this.questionsCompleted, this.TOTAL_Q, won); }.bind(this), 420);
     }
 
     stopGame() {
@@ -940,7 +1017,7 @@ class BattleGameClass {
 
 // Helpers
 function bShuffle(arr) {
-    for (let i=arr.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
+    for (var i=arr.length-1;i>0;i--) { var j=Math.floor(Math.random()*(i+1)); var t=arr[i]; arr[i]=arr[j]; arr[j]=t; }
     return arr;
 }
 function bRR(ctx,x,y,w,h,r) {
@@ -950,4 +1027,4 @@ function bRR(ctx,x,y,w,h,r) {
     ctx.lineTo(x+r,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-r);
     ctx.lineTo(x,y+r); ctx.quadraticCurveTo(x,y,x+r,y); ctx.closePath();
 }
-const battleGame = new BattleGameClass();
+var battleGame = new BattleGameClass();
