@@ -225,16 +225,46 @@ class BattleGameClass {
         // Generate heightmap
         this.generateHeightmap(fromX, toX);
 
-        // Floating platforms
-        var x = fromX + 200;
-        while (x < toX) {
+        // Inject gaps by pushing ground points down in gap regions
+        var gapX = fromX + 400;
+        while (gapX < toX - 200) {
             if (Math.random() < 0.35) {
-                var gy = this.getGroundYAt(x);
-                var pw = 120 + Math.random() * 120;
-                var py = gy - 120 - Math.random() * 100;
-                this.platforms.push({ x: x, y: py, w: pw, h: 21, isGround: false });
+                var gapLen = 80 + Math.random() * 80;
+                // Push ground points in the gap below screen
+                for (var gi = 0; gi < this.groundPoints.length; gi++) {
+                    var gp = this.groundPoints[gi];
+                    if (gp.x >= gapX && gp.x <= gapX + gapLen) {
+                        gp.y = this.H + 200;
+                    }
+                }
+                // Maybe add a stepping stone
+                if (Math.random() < 0.5) {
+                    var baseY = this.getBaseGroundY();
+                    this.platforms.push({
+                        x: gapX + gapLen/2 - 50,
+                        y: baseY - 40 - Math.random()*40,
+                        w: 90 + Math.random()*45, h: 21, isGround: false
+                    });
+                }
+                gapX += gapLen + 300 + Math.random() * 400;
+            } else {
+                gapX += 200 + Math.random() * 200;
             }
-            x += 300 + Math.random() * 300;
+        }
+
+        // Floating platforms — more frequent
+        var x = fromX + 150;
+        while (x < toX) {
+            if (Math.random() < 0.5) {
+                var gy = this.getGroundYAt(x);
+                // Don't place platforms over gaps
+                if (gy < this.H + 100) {
+                    var pw = 120 + Math.random() * 120;
+                    var py = gy - 110 - Math.random() * 90;
+                    this.platforms.push({ x: x, y: py, w: pw, h: 21, isGround: false });
+                }
+            }
+            x += 200 + Math.random() * 250;
         }
         return toX;
     }
@@ -242,30 +272,22 @@ class BattleGameClass {
     spawnEnemiesInRange(fromX, toX) {
         var q = this.questions[this.currentQ];
         if (!q) return;
-        // Cap total enemies to keep performance smooth
-        var MAX_ENEMIES = 8;
-        var aliveCount = 0;
-        for (var i = 0; i < this.enemies.length; i++) {
-            if (this.enemies[i].alive) aliveCount++;
-        }
-        if (aliveCount >= MAX_ENEMIES) return;
-
-        var x = fromX + 200 + Math.random() * 150;
+        var x = fromX + 120 + Math.random() * 100;
         var correctPlaced = false;
-        var spawned = 0;
 
-        while (x < toX - 50 && aliveCount + spawned < MAX_ENEMIES) {
+        while (x < toX - 50) {
             var gy = this.getGroundYAt(x);
-            var makeCorrect = !correctPlaced && (x > toX - 400 || Math.random() < 0.25);
+            // Skip gaps
+            if (gy > this.H + 50) { x += 120; continue; }
+            var makeCorrect = !correctPlaced && (x > toX - 300 || Math.random() < 0.25);
             var answer = makeCorrect ? q.answer : this.randomWrongAnswer();
             this.enemies.push(this.createEnemy({ x: x, y: gy }, answer, makeCorrect));
             if (makeCorrect) correctPlaced = true;
-            spawned++;
-            x += 350 + Math.random() * 300;
+            x += 160 + Math.random() * 220;
         }
 
-        if (!correctPlaced && aliveCount + spawned < MAX_ENEMIES) {
-            var bx = fromX + 300 + Math.random() * Math.max(100, toX - fromX - 600);
+        if (!correctPlaced) {
+            var bx = fromX + 200 + Math.random() * Math.max(100, toX - fromX - 400);
             var bgy = this.getGroundYAt(bx);
             this.enemies.push(this.createEnemy({ x: bx, y: bgy }, q.answer, true));
         }
@@ -285,12 +307,17 @@ class BattleGameClass {
     }
 
     cleanupLevel() {
-        var behind = this.scrollX - this.W * 0.5;
-        var ahead = this.scrollX + this.W * 4;
+        var behind = this.scrollX - this.W;
+        var ahead = this.scrollX + this.W * 2.5;
         this.platforms = this.platforms.filter(function(p) { return p.x + p.w > behind; });
-        this.enemies   = this.enemies.filter(function(e) { return e.alive && e.x + e.w > behind && e.x < ahead; });
-        this.shrapnel  = this.shrapnel.filter(function(s) { return s.x > behind; });
-        // Clean old ground points
+        // Only keep enemies within a reasonable range of the screen
+        this.enemies = this.enemies.filter(function(e) {
+            if (!e.alive) return false;
+            if (e.x + e.w < behind) return false;
+            if (e.x > ahead) return false;
+            return true;
+        });
+        this.shrapnel = this.shrapnel.filter(function(s) { return s.x > behind; });
         while (this.groundPoints.length > 2 && this.groundPoints[1].x < behind) {
             this.groundPoints.shift();
         }
@@ -803,35 +830,44 @@ class BattleGameClass {
 
     drawAnimatedSprite(ctx, img, x, y, w, h, walkPhase, slope) {
         if (!img) return;
-        var swing = Math.sin(walkPhase) * 0.15; // rotation amount
-        var halfH = h / 2;
+        var swing = Math.sin(walkPhase) * 0.12;
         var cx = x + w/2;
+        var headEnd = y + h * 0.33;   // head boundary
+        var waistY  = y + h * 0.55;   // torso/legs boundary
 
         // Lean into slope
         ctx.save();
         ctx.translate(cx, y + h);
-        ctx.rotate(slope * 0.5);
+        ctx.rotate(slope * 0.4);
         ctx.translate(-cx, -(y + h));
 
-        // Upper body — slight counter-swing
+        // Head — no swing, stays stable
         ctx.save();
         ctx.beginPath();
-        ctx.rect(x - 10, y - 10, w + 20, halfH + 10);
+        ctx.rect(x - 10, y - 10, w + 20, headEnd - y + 10);
         ctx.clip();
-        ctx.translate(cx, y + halfH);
-        ctx.rotate(-swing * 0.6);
-        ctx.translate(-cx, -(y + halfH));
         ctx.drawImage(img, x-1, y, w+2, h-4);
         ctx.restore();
 
-        // Lower body — swing legs
+        // Torso + arms — slight counter-swing
         ctx.save();
         ctx.beginPath();
-        ctx.rect(x - 10, y + halfH, w + 20, halfH + 10);
+        ctx.rect(x - 10, headEnd, w + 20, waistY - headEnd);
         ctx.clip();
-        ctx.translate(cx, y + halfH);
+        ctx.translate(cx, waistY);
+        ctx.rotate(-swing * 0.5);
+        ctx.translate(-cx, -waistY);
+        ctx.drawImage(img, x-1, y, w+2, h-4);
+        ctx.restore();
+
+        // Legs — swing
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(x - 10, waistY, w + 20, h - (waistY - y) + 10);
+        ctx.clip();
+        ctx.translate(cx, waistY);
         ctx.rotate(swing);
-        ctx.translate(-cx, -(y + halfH));
+        ctx.translate(-cx, -waistY);
         ctx.drawImage(img, x-1, y, w+2, h-4);
         ctx.restore();
 
