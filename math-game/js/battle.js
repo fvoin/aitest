@@ -5,7 +5,7 @@ class BattleGameClass {
         this.PLAYER_SPEED = 200;
         this.JUMP_VEL     = -440;
         this.TOTAL_Q      = 3;
-        this.GH           = 42;   // ground height
+        this.GH           = 80;   // ground height
 
         this.canvas = null; this.ctx = null;
         this.animFrame = null; this.isRunning = false;
@@ -41,7 +41,7 @@ class BattleGameClass {
         this.ctx = this.canvas.getContext('2d');
         this.setupControls();
         window.addEventListener('resize', () => { if (this.isRunning) this.resizeCanvas(); });
-        screen.orientation?.addEventListener('change', () => { if (this.isRunning) setTimeout(() => this.resizeCanvas(), 200); });
+        if (screen.orientation) screen.orientation.addEventListener('change', () => { if (this.isRunning) setTimeout(() => this.resizeCanvas(), 200); });
     }
 
     async loadAvatar() {
