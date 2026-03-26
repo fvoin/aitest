@@ -242,20 +242,30 @@ class BattleGameClass {
     spawnEnemiesInRange(fromX, toX) {
         var q = this.questions[this.currentQ];
         if (!q) return;
-        var x = fromX + 120 + Math.random() * 100;
-        var correctPlaced = false;
+        // Cap total enemies to keep performance smooth
+        var MAX_ENEMIES = 8;
+        var aliveCount = 0;
+        for (var i = 0; i < this.enemies.length; i++) {
+            if (this.enemies[i].alive) aliveCount++;
+        }
+        if (aliveCount >= MAX_ENEMIES) return;
 
-        while (x < toX - 50) {
+        var x = fromX + 200 + Math.random() * 150;
+        var correctPlaced = false;
+        var spawned = 0;
+
+        while (x < toX - 50 && aliveCount + spawned < MAX_ENEMIES) {
             var gy = this.getGroundYAt(x);
-            var makeCorrect = !correctPlaced && (x > toX - 300 || Math.random() < 0.25);
+            var makeCorrect = !correctPlaced && (x > toX - 400 || Math.random() < 0.25);
             var answer = makeCorrect ? q.answer : this.randomWrongAnswer();
             this.enemies.push(this.createEnemy({ x: x, y: gy }, answer, makeCorrect));
             if (makeCorrect) correctPlaced = true;
-            x += 160 + Math.random() * 220;
+            spawned++;
+            x += 350 + Math.random() * 300;
         }
 
-        if (!correctPlaced) {
-            var bx = fromX + 200 + Math.random() * (toX - fromX - 400);
+        if (!correctPlaced && aliveCount + spawned < MAX_ENEMIES) {
+            var bx = fromX + 300 + Math.random() * Math.max(100, toX - fromX - 600);
             var bgy = this.getGroundYAt(bx);
             this.enemies.push(this.createEnemy({ x: bx, y: bgy }, q.answer, true));
         }
@@ -275,12 +285,13 @@ class BattleGameClass {
     }
 
     cleanupLevel() {
-        var cutoff = this.scrollX - this.W;
-        this.platforms = this.platforms.filter(function(p) { return p.x + p.w > cutoff; });
-        this.enemies   = this.enemies.filter(function(e) { return e.x + e.w > cutoff - 100; });
-        this.shrapnel  = this.shrapnel.filter(function(s) { return s.x > cutoff - 200; });
+        var behind = this.scrollX - this.W * 0.5;
+        var ahead = this.scrollX + this.W * 4;
+        this.platforms = this.platforms.filter(function(p) { return p.x + p.w > behind; });
+        this.enemies   = this.enemies.filter(function(e) { return e.alive && e.x + e.w > behind && e.x < ahead; });
+        this.shrapnel  = this.shrapnel.filter(function(s) { return s.x > behind; });
         // Clean old ground points
-        while (this.groundPoints.length > 2 && this.groundPoints[1].x < cutoff) {
+        while (this.groundPoints.length > 2 && this.groundPoints[1].x < behind) {
             this.groundPoints.shift();
         }
     }
@@ -765,12 +776,13 @@ class BattleGameClass {
         ctx.lineWidth = 16;
         ctx.stroke();
 
-        // Grass tufts
+        // Grass tufts — use x position for deterministic placement
         ctx.fillStyle = '#3d7a50';
-        for (var n = startIdx; n <= endIdx; n++) {
-            if (n % 2 === 0) {
-                ctx.fillRect(pts[n].x - 2, pts[n].y - 8, 4, 10);
-            }
+        var step = this.GROUND_STEP;
+        var tuftStart = Math.floor(lo / (step * 2)) * (step * 2);
+        for (var tx = tuftStart; tx <= hi; tx += step * 2) {
+            var ty = this.getGroundYAt(tx);
+            ctx.fillRect(tx - 2, ty - 8, 4, 10);
         }
     }
 
