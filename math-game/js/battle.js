@@ -114,15 +114,13 @@ class BattleGameClass {
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
-        const hdr  = document.getElementById('battle-header');
-        const ctrl = document.getElementById('battle-controls');
-        const hh = hdr ? hdr.offsetHeight : 52;
-        const ch = ctrl ? ctrl.offsetHeight : 92;
-        const W = window.innerWidth;
-        const H = Math.max(200, window.innerHeight - hh - ch);
+        // Let CSS flex layout determine the canvas display size, then match internal resolution
+        this.canvas.style.width  = '100%';
+        this.canvas.style.height = '';
+        const rect = this.canvas.getBoundingClientRect();
+        const W = Math.round(rect.width);
+        const H = Math.round(rect.height);
         this.canvas.width = W; this.canvas.height = H;
-        this.canvas.style.width  = W + 'px';
-        this.canvas.style.height = H + 'px';
         this.W = W; this.H = H;
     }
 
@@ -461,6 +459,7 @@ class BattleGameClass {
 
         // Shrink hitboxes inward for fairer detection
         const px = p.x + 5, py = p.y + 3, pw = p.w - 10, ph = p.h - 3;
+        let stomped = false;
 
         for (const e of this.enemies) {
             if (!e.alive) continue;
@@ -473,6 +472,7 @@ class BattleGameClass {
             const prevFeetY = p.prevY + p.h;
             if (p.vy > 0 && prevFeetY <= e.y + 4) {
                 p.vy = this.JUMP_VEL * 0.55;
+                stomped = true;
                 if (e.isCorrect) {
                     // Stomped a friend — lose a life!
                     this.onStompFriend(e);
@@ -497,8 +497,8 @@ class BattleGameClass {
             break;
         }
 
-        // Shrapnel vs player
-        if (p.invTimer <= 0) {
+        // Shrapnel vs player (skip if player just stomped to avoid self-hit)
+        if (!stomped && p.invTimer <= 0) {
             for (let i = this.shrapnel.length - 1; i >= 0; i--) {
                 const s = this.shrapnel[i];
                 if (s.x>p.x && s.x<p.x+p.w && s.y>p.y && s.y<p.y+p.h) {
