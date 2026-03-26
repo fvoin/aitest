@@ -114,13 +114,15 @@ class BattleGameClass {
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
-        // Let CSS flex layout determine the canvas display size, then match internal resolution
-        this.canvas.style.width  = '100%';
-        this.canvas.style.height = '';
-        const rect = this.canvas.getBoundingClientRect();
-        const W = Math.round(rect.width);
-        const H = Math.round(rect.height);
+        const hdr  = document.getElementById('battle-header');
+        const ctrl = document.getElementById('battle-controls');
+        const hh = hdr ? hdr.offsetHeight : 52;
+        const ch = ctrl ? ctrl.offsetHeight : 92;
+        const W = window.innerWidth;
+        const H = Math.max(200, window.innerHeight - hh - ch);
         this.canvas.width = W; this.canvas.height = H;
+        this.canvas.style.width  = W + 'px';
+        this.canvas.style.height = H + 'px';
         this.W = W; this.H = H;
     }
 
@@ -477,8 +479,9 @@ class BattleGameClass {
                     // Stomped a friend — lose a life!
                     this.onStompFriend(e);
                 } else {
-                    // Stomped a wrong enemy — kill it
+                    // Stomped a wrong enemy — kill it, brief invincibility from shrapnel
                     e.alive = false;
+                    p.invTimer = 0.5;
                     this.onStompWrong(e);
                 }
             } else {
