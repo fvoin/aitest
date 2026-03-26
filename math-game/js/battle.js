@@ -116,16 +116,14 @@ class BattleGameClass {
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
-        const screen = document.getElementById('battle-screen');
-        const hdr  = document.getElementById('battle-header');
-        const ctrl = document.getElementById('battle-controls');
-        if (!screen) return;
-        const W = screen.clientWidth;
-        const H = screen.clientHeight - (hdr ? hdr.offsetHeight : 0) - (ctrl ? ctrl.offsetHeight : 0);
+        const wrap = document.getElementById('battle-canvas-wrap');
+        if (!wrap) return;
+        const W = wrap.clientWidth;
+        const H = wrap.clientHeight;
         this.canvas.width = W;
-        this.canvas.height = Math.max(100, H);
-        this.W = this.canvas.width;
-        this.H = this.canvas.height;
+        this.canvas.height = H;
+        this.W = W;
+        this.H = H;
     }
 
     // ── QUESTIONS ─────────────────────────────────────────────────────────────
@@ -523,7 +521,7 @@ class BattleGameClass {
         // Start fly-to-HUD animation
         const hudIdx = this.savedFriends.length + this.flyingFriends.length;
         const targetX = 10 + hudIdx * 40;
-        const targetY = 10;
+        const targetY = this.getHUDTopY();
         this.flyingFriends.push({
             img: e.avatarImg,
             startX: e.x - this.scrollX,
@@ -759,33 +757,35 @@ class BattleGameClass {
         ctx.globalAlpha = 1;
     }
 
+    getHUDTopY() {
+        const hdr = document.getElementById('battle-header');
+        return (hdr ? hdr.offsetHeight : 40) + 6;
+    }
+
     drawFriendsHUD() {
         const ctx = this.ctx;
         const size = 34;
+        const topY = this.getHUDTopY();
         for (let i = 0; i < this.savedFriends.length; i++) {
             const x = 10 + i * 40;
-            const y = 10;
-            // Green circle background
             ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
-            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
+            ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
             if (this.savedFriends[i]) {
-                ctx.drawImage(this.savedFriends[i], x, y, size, size);
+                ctx.drawImage(this.savedFriends[i], x, topY, size, size);
             }
         }
         // Draw empty slots for remaining friends
         for (let i = this.savedFriends.length; i < this.TOTAL_Q; i++) {
             const x = 10 + i * 40;
-            const y = 10;
             ctx.fillStyle = 'rgba(200, 200, 200, 0.25)';
-            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)'; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
-            // Question mark
+            ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
             ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
             ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('?', x + size/2, y + size/2 + 6);
+            ctx.fillText('?', x + size/2, topY + size/2 + 6);
         }
     }
 
