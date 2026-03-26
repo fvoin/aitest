@@ -215,10 +215,14 @@ class BattleGameClass {
     }
 
     getGroundSlopeAt(worldX) {
-        var dx = 8;
+        var dx = 30;
         var y1 = this.getGroundYAt(worldX - dx);
         var y2 = this.getGroundYAt(worldX + dx);
-        return Math.atan2(y2 - y1, dx * 2);
+        // Clamp to avoid wild rotation at gap edges
+        var raw = Math.atan2(y2 - y1, dx * 2);
+        if (raw > 0.4) raw = 0.4;
+        if (raw < -0.4) raw = -0.4;
+        return raw;
     }
 
     generateTerrain(fromX, toX) {
@@ -269,67 +273,77 @@ class BattleGameClass {
         return toX;
     }
 
-    spawnEnemiesInRange(fromX, toX) {
-        var q = this.questions[this.currentQ];
-        if (!q) return;
-        var x = fromX + 120 + Math.random() * 100;
-        var correctPlaced = false;
-
-        while (x < toX - 50) {
-            var gy = this.getGroundYAt(x);
-            // Skip gaps
-            if (gy > this.H + 50) { x += 120; continue; }
-            var makeCorrect = !correctPlaced && (x > toX - 300 || Math.random() < 0.25);
-            var answer = makeCorrect ? q.answer : this.randomWrongAnswer();
-            this.enemies.push(this.createEnemy({ x: x, y: gy }, answer, makeCorrect));
-            if (makeCorrect) correctPlaced = true;
-            x += 160 + Math.random() * 220;
-        }
-
-        if (!correctPlaced) {
-            // Find a valid (non-gap) spot for the guaranteed correct enemy
-            var bx = fromX + 200;
-            var bgy;
-            for (var tries = 0; tries < 20; tries++) {
-                bx = fromX + 200 + Math.random() * Math.max(100, toX - fromX - 400);
-                bgy = this.getGroundYAt(bx);
-                if (bgy < this.H + 50) break;
-            }
-            if (bgy < this.H + 50) {
-                this.enemies.push(this.createEnemy({ x: bx, y: bgy }, q.answer, true));
-            }
-        }
-    }
-
     findSurfaceAt(worldX) {
         return { y: this.getGroundYAt(worldX) };
     }
 
     extendLevel() {
+        // Extend terrain ahead
         var aheadNeeded = this.scrollX + this.W * 3;
         if (this.levelEndX < aheadNeeded) {
-            var oldEnd = this.levelEndX;
             this.levelEndX = this.generateTerrain(this.levelEndX, aheadNeeded);
-            // Only spawn enemies in a limited chunk to avoid crowd bursts
-            var spawnEnd = Math.min(this.levelEndX, oldEnd + this.W * 1.5);
-            this.spawnEnemiesInRange(oldEnd, spawnEnd);
-            this.lastSpawnEnd = spawnEnd;
         }
-        // Incrementally spawn ahead if we've scrolled past the last spawn zone
-        if (this.lastSpawnEnd && this.scrollX + this.W * 1.5 > this.lastSpawnEnd) {
-            var newEnd = Math.min(this.levelEndX, this.lastSpawnEnd + this.W);
-            if (newEnd > this.lastSpawnEnd) {
-                this.spawnEnemiesInRange(this.lastSpawnEnd, newEnd);
-                this.lastSpawnEnd = newEnd;
+        // Maintain enemies: ensure there are always some ahead of the player
+        this.maintainEnemies();
+    }
+
+    maintainEnemies() {
+        var q = this.questions[this.currentQ];
+        if (!q) return;
+        var playerX = this.player ? this.player.x : 0;
+        var screenRight = this.scrollX + this.W;
+
+        // Count enemies visible and ahead
+        var visibleCount = 0;
+        var rightmostEnemy = playerX;
+        var hasCorrectAhead = false;
+        for (var i = 0; i < this.enemies.length; i++) {
+            var e = this.enemies[i];
+            if (!e.alive) continue;
+            if (e.x > playerX - 100 && e.x < screenRight + this.W * 2) {
+                visibleCount++;
+                if (e.x > rightmostEnemy) rightmostEnemy = e.x;
+                if (e.isCorrect && e.x > playerX) hasCorrectAhead = true;
+            }
+        }
+
+        // Spawn new enemies ahead if needed
+        var DESIRED = 5;
+        var spawnFrom = Math.max(rightmostEnemy + 200, screenRight + 50);
+        var spawnTo = screenRight + this.W * 2;
+
+        while (visibleCount < DESIRED && spawnFrom < spawnTo) {
+            var gy = this.getGroundYAt(spawnFrom);
+            if (gy < this.H + 50) {
+                var makeCorrect = !hasCorrectAhead && (Math.random() < 0.3);
+                var answer = makeCorrect ? q.answer : this.randomWrongAnswer();
+                this.enemies.push(this.createEnemy({ x: spawnFrom, y: gy }, answer, makeCorrect));
+                if (makeCorrect) hasCorrectAhead = true;
+                visibleCount++;
+                spawnFrom += 200 + Math.random() * 200;
+            } else {
+                spawnFrom += 100;
+            }
+        }
+
+        // Guarantee at least one correct enemy ahead
+        if (!hasCorrectAhead) {
+            var cx = screenRight + 300 + Math.random() * 400;
+            for (var t = 0; t < 15; t++) {
+                var cgy = this.getGroundYAt(cx);
+                if (cgy < this.H + 50) {
+                    this.enemies.push(this.createEnemy({ x: cx, y: cgy }, q.answer, true));
+                    break;
+                }
+                cx += 80;
             }
         }
     }
 
     cleanupLevel() {
-        var behind = this.scrollX - this.W;
-        var ahead = this.scrollX + this.W * 3.5;
+        var behind = this.scrollX - this.W * 0.5;
+        var ahead = this.scrollX + this.W * 3;
         this.platforms = this.platforms.filter(function(p) { return p.x + p.w > behind; });
-        // Only keep enemies within a reasonable range of the screen
         this.enemies = this.enemies.filter(function(e) {
             if (!e.alive) return false;
             if (e.x + e.w < behind) return false;
@@ -370,6 +384,7 @@ class BattleGameClass {
             jumpTimer: jumpTimer || 0,
             onGround: false,
             walkPhase: Math.random() * Math.PI * 2,
+            displaySlope: 0,
         };
         this.loadRandomAvatarForEnemy(enemy);
         return enemy;
@@ -395,15 +410,13 @@ class BattleGameClass {
         this.resizeCanvas();
 
         this.levelEndX = this.generateTerrain(0, this.W * 4);
-        this.spawnEnemiesInRange(this.W * 0.5, this.levelEndX);
-        this.lastSpawnEnd = this.levelEndX;
 
         var startY = this.getGroundYAt(80);
         this.player = {
             x: 80, y: startY - 87,
             w: 54, h: 87, vx: 0, vy: 0,
             onGround: true, facingRight: true, invTimer: 0,
-            prevY: startY - 87, walkPhase: 0,
+            prevY: startY - 87, walkPhase: 0, displaySlope: 0,
         };
         this.airJumpUsed = false;
         this.flipAngle = 0;
@@ -876,9 +889,10 @@ class BattleGameClass {
         if (!p.facingRight) {
             ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
         }
-        var slope = p.onGround ? this.getGroundSlopeAt(p.x + p.w/2) : 0;
+        var targetSlope = p.onGround ? this.getGroundSlopeAt(p.x + p.w/2) : 0;
+        p.displaySlope += (targetSlope - p.displaySlope) * 0.15;
         if (this.avatarLoaded && this.avatarImg) {
-            this.drawAnimatedSprite(ctx, this.avatarImg, p.x, p.y, p.w, p.h, p.walkPhase, slope);
+            this.drawAnimatedSprite(ctx, this.avatarImg, p.x, p.y, p.w, p.h, p.walkPhase, p.displaySlope);
         } else {
             this.drawFallback(ctx, p.x, p.y, p.w, p.h, '#667eea');
         }
@@ -910,9 +924,10 @@ class BattleGameClass {
             var pDir = (this.player && this.player.x+this.player.w/2 > ecx) ? 1 : -1;
             if (pDir<0) { ctx.translate(ecx,0); ctx.scale(-1,1); ctx.translate(-ecx,0); }
 
-            var eslope = e.onGround ? this.getGroundSlopeAt(ecx) : 0;
+            var eTargetSlope = e.onGround ? this.getGroundSlopeAt(ecx) : 0;
+            e.displaySlope += (eTargetSlope - e.displaySlope) * 0.15;
             if (e.avatarImg) {
-                this.drawAnimatedSprite(ctx, e.avatarImg, e.x, e.y, e.w, e.h, e.walkPhase || 0, eslope);
+                this.drawAnimatedSprite(ctx, e.avatarImg, e.x, e.y, e.w, e.h, e.walkPhase || 0, e.displaySlope);
             } else {
                 this.drawFallback(ctx, e.x, e.y, e.w, e.h, e.color);
             }
