@@ -466,8 +466,8 @@ class BattleGameClass {
             // AABB overlap
             if (!(px+pw > ex && px < ex+ew && py+ph > ey && py < ey+eh)) continue;
 
-            // Stomp: player falling AND feet in top 25% of enemy
-            if (p.vy > 0 && py + ph <= ey + eh * 0.25) {
+            // Stomp: player falling AND feet in top half of enemy
+            if (p.vy > 0 && py + ph <= ey + eh * 0.5) {
                 p.vy = this.JUMP_VEL * 0.55;
                 if (e.isCorrect) {
                     // Stomped a friend — lose a life!
