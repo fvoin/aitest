@@ -114,12 +114,13 @@ class BattleGameClass {
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
+        const vv = window.visualViewport || { width: window.innerWidth, height: window.innerHeight };
         const hdr  = document.getElementById('battle-header');
         const ctrl = document.getElementById('battle-controls');
         const hh = hdr ? hdr.offsetHeight : 52;
         const ch = ctrl ? ctrl.offsetHeight : 92;
-        const W = window.innerWidth;
-        const H = Math.max(200, window.innerHeight - hh - ch);
+        const W = vv.width;
+        const H = Math.max(150, vv.height - hh - ch);
         this.canvas.width = W; this.canvas.height = H;
         this.canvas.style.width  = W + 'px';
         this.canvas.style.height = H + 'px';
@@ -298,7 +299,7 @@ class BattleGameClass {
         this.player = {
             x: 80, y: this.H - this.GH - 60,
             w: 36, h: 58, vx: 0, vy: 0,
-            onGround: false, facingRight: true, invTimer: 0,
+            onGround: false, facingRight: true, invTimer: 0, shrapnelImmune: 0,
             prevY: this.H - this.GH - 60,
         };
 
@@ -388,6 +389,7 @@ class BattleGameClass {
         }
 
         if (p.invTimer > 0) p.invTimer -= dt;
+        if (p.shrapnelImmune > 0) p.shrapnelImmune -= dt;
     }
 
     // ── ENEMIES ───────────────────────────────────────────────────────────────
@@ -479,9 +481,9 @@ class BattleGameClass {
                     // Stomped a friend — lose a life!
                     this.onStompFriend(e);
                 } else {
-                    // Stomped a wrong enemy — kill it, brief invincibility from shrapnel
+                    // Stomped a wrong enemy — kill it
                     e.alive = false;
-                    p.invTimer = 0.5;
+                    p.shrapnelImmune = 0.5;
                     this.onStompWrong(e);
                 }
             } else {
@@ -500,8 +502,8 @@ class BattleGameClass {
             break;
         }
 
-        // Shrapnel vs player (skip if player just stomped to avoid self-hit)
-        if (!stomped && p.invTimer <= 0) {
+        // Shrapnel vs player (skip if player just stomped or has shrapnel immunity)
+        if (!stomped && p.invTimer <= 0 && p.shrapnelImmune <= 0) {
             for (let i = this.shrapnel.length - 1; i >= 0; i--) {
                 const s = this.shrapnel[i];
                 if (s.x>p.x && s.x<p.x+p.w && s.y>p.y && s.y<p.y+p.h) {
