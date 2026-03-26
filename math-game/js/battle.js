@@ -118,8 +118,8 @@ class BattleGameClass {
         const ctrl = document.getElementById('battle-controls');
         const hh = hdr ? hdr.offsetHeight : 52;
         const ch = ctrl ? ctrl.offsetHeight : 92;
-        const W = Math.min(window.innerWidth, 600);
-        const H = Math.max(230, Math.min(430, window.innerHeight - hh - ch - 4));
+        const W = window.innerWidth;
+        const H = Math.max(200, window.innerHeight - hh - ch);
         this.canvas.width = W; this.canvas.height = H;
         this.canvas.style.width  = W + 'px';
         this.canvas.style.height = H + 'px';
@@ -299,6 +299,7 @@ class BattleGameClass {
             x: 80, y: this.H - this.GH - 60,
             w: 36, h: 58, vx: 0, vy: 0,
             onGround: false, facingRight: true, invTimer: 0,
+            prevY: this.H - this.GH - 60,
         };
 
         if (this.timerInterval) clearInterval(this.timerInterval);
@@ -352,6 +353,8 @@ class BattleGameClass {
 
     updatePlayer(dt) {
         const p = this.player; if (!p) return;
+
+        p.prevY = p.y;
 
         if      (this.controls.left)  { p.vx = -this.PLAYER_SPEED; p.facingRight = false; }
         else if (this.controls.right) { p.vx =  this.PLAYER_SPEED; p.facingRight = true;  }
@@ -466,8 +469,9 @@ class BattleGameClass {
             // AABB overlap
             if (!(px+pw > ex && px < ex+ew && py+ph > ey && py < ey+eh)) continue;
 
-            // Stomp: player falling AND feet in top half of enemy
-            if (p.vy > 0 && py + ph <= ey + eh * 0.5) {
+            // Stomp: player falling AND feet were above enemy top last frame
+            const prevFeetY = p.prevY + p.h;
+            if (p.vy > 0 && prevFeetY <= e.y + 4) {
                 p.vy = this.JUMP_VEL * 0.55;
                 if (e.isCorrect) {
                     // Stomped a friend — lose a life!
