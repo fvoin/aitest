@@ -26,6 +26,8 @@ class BattleGameClass {
         this.questions  = [];
         this.controls   = { left:false, right:false, jump:false };
         this.jumpConsumed = false;
+        this.airJumpUsed = false;
+        this.flipAngle = 0;
 
         this.avatarImg    = null;
         this.avatarLoaded = false;
@@ -298,11 +300,13 @@ class BattleGameClass {
         this.spawnEnemiesInRange(this.W * 0.5, this.levelEndX);
 
         this.player = {
-            x: 80, y: this.H - this.GH - 60,
+            x: 80, y: this.H - this.GH - 87,
             w: 54, h: 87, vx: 0, vy: 0,
-            onGround: false, facingRight: true, invTimer: 0,
-            prevY: this.H - this.GH - 60,
+            onGround: true, facingRight: true, invTimer: 0,
+            prevY: this.H - this.GH - 87,
         };
+        this.airJumpUsed = false;
+        this.flipAngle = 0;
 
         if (this.timerInterval) clearInterval(this.timerInterval);
         if (timer > 0) {
@@ -362,10 +366,26 @@ class BattleGameClass {
         else if (this.controls.right) { p.vx =  this.PLAYER_SPEED; p.facingRight = true;  }
         else p.vx *= 0.6;
 
-        if (this.controls.jump && !this.jumpConsumed && p.onGround) {
-            p.vy = this.JUMP_VEL; this.jumpConsumed = true;
+        if (this.controls.jump && !this.jumpConsumed) {
+            if (p.onGround) {
+                p.vy = this.JUMP_VEL;
+                this.jumpConsumed = true;
+                this.airJumpUsed = false;
+                this.flipAngle = 0;
+            } else if (!this.airJumpUsed) {
+                p.vy = this.JUMP_VEL * 0.85;
+                this.airJumpUsed = true;
+                this.jumpConsumed = true;
+                this.flipAngle = 0.01; // start backflip
+            }
         }
         if (!this.controls.jump) this.jumpConsumed = false;
+
+        // Animate backflip
+        if (this.flipAngle > 0 && this.flipAngle < Math.PI * 2) {
+            this.flipAngle += 14 * dt;
+            if (this.flipAngle >= Math.PI * 2) this.flipAngle = 0;
+        }
 
         p.vy += this.GRAVITY * dt;
         p.x  += p.vx * dt;
@@ -376,7 +396,7 @@ class BattleGameClass {
         for (const pl of this.platforms) {
             if (p.vy >= 0 && p.x+p.w > pl.x && p.x < pl.x+pl.w &&
                 p.y+p.h >= pl.y && p.y+p.h - p.vy*dt <= pl.y + 8) {
-                p.y = pl.y - p.h; p.vy = 0; p.onGround = true;
+                p.y = pl.y - p.h; p.vy = 0; p.onGround = true; this.airJumpUsed = false; this.flipAngle = 0;
             }
         }
 
@@ -469,9 +489,9 @@ class BattleGameClass {
             // AABB overlap
             if (!(px+pw > ex && px < ex+ew && py+ph > ey && py < ey+eh)) continue;
 
-            // Stomp: player falling AND feet were above enemy top last frame
+            // Stomp: player falling AND feet were above enemy upper third last frame
             const prevFeetY = p.prevY + p.h;
-            if (p.vy > 0 && prevFeetY <= e.y + 4) {
+            if (p.vy > 0 && prevFeetY <= e.y + e.h * 0.35) {
                 p.vy = this.JUMP_VEL * 0.55;
                 if (e.isCorrect) {
                     // Stomped a friend — lose a life!
@@ -638,10 +658,11 @@ class BattleGameClass {
         for (const pl of this.platforms) {
             if (pl.x + pl.w < lo || pl.x > hi) continue;
             if (pl.isGround) {
-                ctx.fillStyle = '#5a9e6e';
-                ctx.fillRect(pl.x, pl.y, pl.w, 15);
+                // Draw with 1px overlap to hide seams between segments
                 ctx.fillStyle = '#7a5230';
-                ctx.fillRect(pl.x, pl.y+15, pl.w, pl.h-15);
+                ctx.fillRect(pl.x-1, pl.y, pl.w+2, pl.h);
+                ctx.fillStyle = '#5a9e6e';
+                ctx.fillRect(pl.x-1, pl.y, pl.w+2, 15);
                 ctx.fillStyle = '#3d7a50';
                 for (let gx = 10; gx < pl.w; gx += 20)
                     ctx.fillRect(pl.x+gx, pl.y-7, 4, 9);
@@ -658,8 +679,14 @@ class BattleGameClass {
         const ctx = this.ctx, p = this.player; if (!p) return;
         if (p.invTimer > 0 && Math.floor(p.invTimer*9)%2===0) return;
         ctx.save();
+        var cx = p.x + p.w/2, cy = p.y + p.h/2;
+        if (this.flipAngle > 0) {
+            ctx.translate(cx, cy);
+            ctx.rotate(this.flipAngle);
+            ctx.translate(-cx, -cy);
+        }
         if (!p.facingRight) {
-            ctx.translate(p.x+p.w/2,0); ctx.scale(-1,1); ctx.translate(-(p.x+p.w/2),0);
+            ctx.translate(cx, 0); ctx.scale(-1, 1); ctx.translate(-cx, 0);
         }
         if (this.avatarLoaded && this.avatarImg)
             ctx.drawImage(this.avatarImg, p.x-1, p.y, p.w+2, p.h-4);
