@@ -5,7 +5,7 @@ class BattleGameClass {
         this.PLAYER_SPEED = 200;
         this.JUMP_VEL     = -440;
         this.TOTAL_Q      = 3;
-        this.GH           = 80;   // ground height
+        this.GH           = 110;  // ground height
 
         this.canvas = null; this.ctx = null;
         this.animFrame = null; this.isRunning = false;
@@ -176,23 +176,23 @@ class BattleGameClass {
 
             // Maybe floating platform above
             if (Math.random() < 0.45) {
-                const pw = 80 + Math.random() * 80;
-                const px = x + 30 + Math.random() * (segLen - pw - 20);
-                const py = GY - 80 - Math.random() * 80;
-                this.platforms.push({ x: px, y: py, w: pw, h: 14, isGround: false });
+                const pw = 120 + Math.random() * 120;
+                const px = x + 45 + Math.random() * (segLen - pw - 30);
+                const py = GY - 120 - Math.random() * 120;
+                this.platforms.push({ x: px, y: py, w: pw, h: 21, isGround: false });
             }
 
             x += segLen;
 
             // Gap? (not at the very start)
             if (x > fromX + 350 && Math.random() < 0.45) {
-                const gapLen = 55 + Math.random() * 55;
+                const gapLen = 80 + Math.random() * 80;
 
                 // Sometimes add a stepping stone
                 if (Math.random() < 0.5) {
                     this.platforms.push({
-                        x: x + gapLen/2 - 30, y: GY - 35 - Math.random()*30,
-                        w: 60 + Math.random()*30, h: 14, isGround: false
+                        x: x + gapLen/2 - 45, y: GY - 50 - Math.random()*45,
+                        w: 90 + Math.random()*45, h: 21, isGround: false
                     });
                 }
                 x += gapLen;
@@ -254,14 +254,14 @@ class BattleGameClass {
     // ── ENEMY ─────────────────────────────────────────────────────────────────
 
     createEnemy(sp, answer, isCorrect) {
-        const EW = 42, EH = 56;
+        const EW = 63, EH = 84;
         const enemy = {
             x: sp.x - EW/2, y: sp.y - EH,
             w: EW, h: EH, vy: 0,
             answer, isCorrect,
             color: this.COLORS[Math.floor(Math.random()*this.COLORS.length)],
             avatarImg: null, alive: true,
-            patrolCX: sp.x, patrolRange: 50,
+            patrolCX: sp.x, patrolRange: 75,
             patrolDir: Math.random()<0.5?1:-1,
             patrolTimer: Math.random()*2+1,
             onGround: false,
@@ -299,7 +299,7 @@ class BattleGameClass {
 
         this.player = {
             x: 80, y: this.H - this.GH - 60,
-            w: 36, h: 58, vx: 0, vy: 0,
+            w: 54, h: 87, vx: 0, vy: 0,
             onGround: false, facingRight: true, invTimer: 0,
             prevY: this.H - this.GH - 60,
         };
@@ -518,7 +518,7 @@ class BattleGameClass {
 
         // Start fly-to-HUD animation
         const hudIdx = this.savedFriends.length + this.flyingFriends.length;
-        const targetX = 10 + hudIdx * 40;
+        const targetX = 10 + hudIdx * 56;
         const targetY = this.getHUDTopY();
         this.flyingFriends.push({
             img: e.avatarImg,
@@ -639,17 +639,17 @@ class BattleGameClass {
             if (pl.x + pl.w < lo || pl.x > hi) continue;
             if (pl.isGround) {
                 ctx.fillStyle = '#5a9e6e';
-                ctx.fillRect(pl.x, pl.y, pl.w, 10);
+                ctx.fillRect(pl.x, pl.y, pl.w, 15);
                 ctx.fillStyle = '#7a5230';
-                ctx.fillRect(pl.x, pl.y+10, pl.w, pl.h-10);
+                ctx.fillRect(pl.x, pl.y+15, pl.w, pl.h-15);
                 ctx.fillStyle = '#3d7a50';
-                for (let gx = 8; gx < pl.w; gx += 16)
-                    ctx.fillRect(pl.x+gx, pl.y-5, 3, 6);
+                for (let gx = 10; gx < pl.w; gx += 20)
+                    ctx.fillRect(pl.x+gx, pl.y-7, 4, 9);
             } else {
                 ctx.fillStyle = '#8B6914';
-                bRR(ctx, pl.x, pl.y, pl.w, pl.h, 5); ctx.fill();
+                bRR(ctx, pl.x, pl.y, pl.w, pl.h, 7); ctx.fill();
                 ctx.fillStyle = 'rgba(255,255,255,0.22)';
-                ctx.fillRect(pl.x+4, pl.y+2, pl.w-8, 3);
+                ctx.fillRect(pl.x+5, pl.y+3, pl.w-10, 4);
             }
         }
     }
@@ -701,13 +701,13 @@ class BattleGameClass {
 
             // Answer label
             const ans = String(e.answer);
-            ctx.font = 'bold 13px Arial';
+            ctx.font = 'bold 19px Arial';
             const tw = ctx.measureText(ans).width;
-            const lw=tw+16, lh=22, lx=cx-lw/2, ly=e.y-lh-5;
+            const lw=tw+22, lh=30, lx=cx-lw/2, ly=e.y-lh-7;
             ctx.fillStyle = 'rgba(25,25,45,0.88)';
-            bRR(ctx, lx, ly, lw, lh, 7); ctx.fill();
+            bRR(ctx, lx, ly, lw, lh, 9); ctx.fill();
             ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-            ctx.fillText(ans, cx, ly+lh-6);
+            ctx.fillText(ans, cx, ly+lh-8);
         }
     }
 
@@ -715,18 +715,18 @@ class BattleGameClass {
         if (!this.player || this.questionsCompleted >= this.TOTAL_Q) return;
         const q = this.questions[this.currentQ]; if (!q) return;
         const ctx = this.ctx, p = this.player, text = q.text;
-        ctx.font = 'bold 15px Arial';
+        ctx.font = 'bold 22px Arial';
         const tw = ctx.measureText(text).width;
-        const bw=tw+20, bh=26;
-        const bx=p.x+p.w/2-bw/2, by=p.y-bh-14;
+        const bw=tw+28, bh=36;
+        const bx=p.x+p.w/2-bw/2, by=p.y-bh-18;
         ctx.fillStyle = 'rgba(255,255,255,0.96)';
         ctx.strokeStyle = '#667eea'; ctx.lineWidth = 2;
-        bRR(ctx, bx, by, bw, bh, 8); ctx.fill(); ctx.stroke();
+        bRR(ctx, bx, by, bw, bh, 10); ctx.fill(); ctx.stroke();
         ctx.fillStyle = 'rgba(255,255,255,0.96)';
         ctx.beginPath();
-        ctx.moveTo(p.x+p.w/2-5, by+bh);
-        ctx.lineTo(p.x+p.w/2, by+bh+9);
-        ctx.lineTo(p.x+p.w/2+5, by+bh);
+        ctx.moveTo(p.x+p.w/2-7, by+bh);
+        ctx.lineTo(p.x+p.w/2, by+bh+12);
+        ctx.lineTo(p.x+p.w/2+7, by+bh);
         ctx.fill();
         ctx.fillStyle = '#333'; ctx.textAlign = 'center';
         ctx.fillText(text, p.x+p.w/2, by+bh-7);
@@ -762,10 +762,10 @@ class BattleGameClass {
 
     drawFriendsHUD() {
         const ctx = this.ctx;
-        const size = 34;
+        const size = 48;
         const topY = this.getHUDTopY();
         for (let i = 0; i < this.savedFriends.length; i++) {
-            const x = 10 + i * 40;
+            const x = 10 + i * 56;
             ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
             ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2;
@@ -776,20 +776,20 @@ class BattleGameClass {
         }
         // Draw empty slots for remaining friends
         for (let i = this.savedFriends.length; i < this.TOTAL_Q; i++) {
-            const x = 10 + i * 40;
+            const x = 10 + i * 56;
             ctx.fillStyle = 'rgba(200, 200, 200, 0.25)';
             ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
             ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)'; ctx.lineWidth = 2;
             ctx.beginPath(); ctx.arc(x + size/2, topY + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
             ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
-            ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
-            ctx.fillText('?', x + size/2, topY + size/2 + 6);
+            ctx.font = 'bold 22px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('?', x + size/2, topY + size/2 + 8);
         }
     }
 
     drawFlyingFriends() {
         const ctx = this.ctx;
-        const size = 34;
+        const size = 48;
         for (const f of this.flyingFriends) {
             ctx.save();
             ctx.globalAlpha = f.curAlpha;
