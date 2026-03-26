@@ -310,7 +310,18 @@ class BattleGameClass {
         if (this.levelEndX < aheadNeeded) {
             var oldEnd = this.levelEndX;
             this.levelEndX = this.generateTerrain(this.levelEndX, aheadNeeded);
-            this.spawnEnemiesInRange(oldEnd, this.levelEndX);
+            // Only spawn enemies in a limited chunk to avoid crowd bursts
+            var spawnEnd = Math.min(this.levelEndX, oldEnd + this.W * 1.5);
+            this.spawnEnemiesInRange(oldEnd, spawnEnd);
+            this.lastSpawnEnd = spawnEnd;
+        }
+        // Incrementally spawn ahead if we've scrolled past the last spawn zone
+        if (this.lastSpawnEnd && this.scrollX + this.W * 1.5 > this.lastSpawnEnd) {
+            var newEnd = Math.min(this.levelEndX, this.lastSpawnEnd + this.W);
+            if (newEnd > this.lastSpawnEnd) {
+                this.spawnEnemiesInRange(this.lastSpawnEnd, newEnd);
+                this.lastSpawnEnd = newEnd;
+            }
         }
     }
 
@@ -385,6 +396,7 @@ class BattleGameClass {
 
         this.levelEndX = this.generateTerrain(0, this.W * 4);
         this.spawnEnemiesInRange(this.W * 0.5, this.levelEndX);
+        this.lastSpawnEnd = this.levelEndX;
 
         var startY = this.getGroundYAt(80);
         this.player = {
@@ -509,7 +521,7 @@ class BattleGameClass {
 
         // Walk animation phase
         if (p.onGround && Math.abs(p.vx) > 20) {
-            p.walkPhase += Math.abs(p.vx) * dt * 0.08;
+            p.walkPhase += Math.abs(p.vx) * dt * 0.035;
         } else if (p.onGround) {
             p.walkPhase = 0;
         }
@@ -549,7 +561,7 @@ class BattleGameClass {
                 }
             }
 
-            if (e.speed > 0) e.walkPhase += e.speed * dt * 0.12;
+            if (e.speed > 0) e.walkPhase += e.speed * dt * 0.05;
 
             // Gravity
             e.vy += this.GRAVITY * dt;
@@ -838,14 +850,12 @@ class BattleGameClass {
 
     drawAnimatedSprite(ctx, img, x, y, w, h, walkPhase, slope) {
         if (!img) return;
-        // Simple walk: vertical bob + slight lean, no clipping seams
-        var bob = Math.abs(Math.sin(walkPhase * 2)) * 3;
-        var lean = Math.sin(walkPhase) * 0.04;
+        var bob = Math.abs(Math.sin(walkPhase)) * 2.5;
+        var lean = Math.sin(walkPhase * 0.5) * 0.03;
         var cx = x + w/2;
         var feet = y + h;
 
         ctx.save();
-        // Lean into slope
         ctx.translate(cx, feet);
         ctx.rotate(slope * 0.3 + lean);
         ctx.translate(-cx, -feet);
