@@ -40,6 +40,8 @@ class BattleGameClass {
         if (!this.canvas) return;
         this.ctx = this.canvas.getContext('2d');
         this.setupControls();
+        window.addEventListener('resize', () => { if (this.isRunning) this.resizeCanvas(); });
+        screen.orientation?.addEventListener('change', () => { if (this.isRunning) setTimeout(() => this.resizeCanvas(), 200); });
     }
 
     async loadAvatar() {
@@ -114,13 +116,16 @@ class BattleGameClass {
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
-        const wrap = document.getElementById('battle-canvas-wrap');
-        if (!wrap) return;
-        const W = wrap.clientWidth;
-        const H = wrap.clientHeight;
+        const screen = document.getElementById('battle-screen');
+        const hdr  = document.getElementById('battle-header');
+        const ctrl = document.getElementById('battle-controls');
+        if (!screen) return;
+        const W = screen.clientWidth;
+        const H = screen.clientHeight - (hdr ? hdr.offsetHeight : 0) - (ctrl ? ctrl.offsetHeight : 0);
         this.canvas.width = W;
-        this.canvas.height = H;
-        this.W = W; this.H = H;
+        this.canvas.height = Math.max(100, H);
+        this.W = this.canvas.width;
+        this.H = this.canvas.height;
     }
 
     // ── QUESTIONS ─────────────────────────────────────────────────────────────
@@ -286,6 +291,8 @@ class BattleGameClass {
         // Wait for player avatar before first frame
         await this.loadAvatar();
 
+        // Wait for layout to settle before measuring
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
         this.resizeCanvas();
 
         // Generate initial level
@@ -295,7 +302,7 @@ class BattleGameClass {
         this.player = {
             x: 80, y: this.H - this.GH - 60,
             w: 36, h: 58, vx: 0, vy: 0,
-            onGround: false, facingRight: true, invTimer: 0, shrapnelImmune: 0,
+            onGround: false, facingRight: true, invTimer: 0,
             prevY: this.H - this.GH - 60,
         };
 
@@ -385,7 +392,6 @@ class BattleGameClass {
         }
 
         if (p.invTimer > 0) p.invTimer -= dt;
-        if (p.shrapnelImmune > 0) p.shrapnelImmune -= dt;
     }
 
     // ── ENEMIES ───────────────────────────────────────────────────────────────
@@ -459,7 +465,6 @@ class BattleGameClass {
 
         // Shrink hitboxes inward for fairer detection
         const px = p.x + 5, py = p.y + 3, pw = p.w - 10, ph = p.h - 3;
-        let stomped = false;
 
         for (const e of this.enemies) {
             if (!e.alive) continue;
@@ -472,14 +477,12 @@ class BattleGameClass {
             const prevFeetY = p.prevY + p.h;
             if (p.vy > 0 && prevFeetY <= e.y + 4) {
                 p.vy = this.JUMP_VEL * 0.55;
-                stomped = true;
                 if (e.isCorrect) {
                     // Stomped a friend — lose a life!
                     this.onStompFriend(e);
                 } else {
                     // Stomped a wrong enemy — kill it
                     e.alive = false;
-                    p.shrapnelImmune = 0.5;
                     this.onStompWrong(e);
                 }
             } else {
@@ -498,15 +501,7 @@ class BattleGameClass {
             break;
         }
 
-        // Shrapnel vs player (skip if player just stomped or has shrapnel immunity)
-        if (!stomped && p.invTimer <= 0 && p.shrapnelImmune <= 0) {
-            for (let i = this.shrapnel.length - 1; i >= 0; i--) {
-                const s = this.shrapnel[i];
-                if (s.x>p.x && s.x<p.x+p.w && s.y>p.y && s.y<p.y+p.h) {
-                    this.shrapnel.splice(i, 1); this.playerHit(); break;
-                }
-            }
-        }
+        // Shrapnel is visual-only, no player damage
 
         this.enemies = this.enemies.filter(e => e.alive);
     }
