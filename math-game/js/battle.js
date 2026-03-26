@@ -44,26 +44,33 @@ class BattleGameClass {
         if (screen.orientation) screen.orientation.addEventListener('change', () => { if (this.isRunning) setTimeout(() => this.resizeCanvas(), 200); });
     }
 
+    svgToImage(svg, callback) {
+        var url = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+        var img = new Image();
+        img.onload  = function() { callback(img); };
+        img.onerror = function() { callback(null); };
+        img.src = url;
+    }
+
     async loadAvatar() {
         this.avatarLoaded = false; this.avatarImg = null;
         if (typeof AvatarManager === 'undefined') return;
         try {
-            const svg  = AvatarManager.getSVG(80, false);
-            const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-            const url  = URL.createObjectURL(blob);
-            await new Promise(resolve => {
-                const img = new Image();
-                img.onload  = () => { this.avatarImg = img; this.avatarLoaded = true; URL.revokeObjectURL(url); resolve(); };
-                img.onerror = () => { URL.revokeObjectURL(url); resolve(); };
-                img.src = url;
-            });
+            var svg = AvatarManager.getSVG(80, false);
+            await new Promise(function(resolve) {
+                this.svgToImage(svg, function(img) {
+                    if (img) { this.avatarImg = img; this.avatarLoaded = true; }
+                    resolve();
+                }.bind(this));
+            }.bind(this));
         } catch(e) {}
     }
 
     loadRandomAvatarForEnemy(enemy) {
         if (typeof AvatarManager === 'undefined') return;
-        const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
-        const saved = { ...AvatarManager.current };
+        var rnd = function(arr) { return arr[Math.floor(Math.random() * arr.length)]; };
+        var saved = {};
+        for (var k in AvatarManager.current) saved[k] = AvatarManager.current[k];
         AvatarManager.current = {
             faceForm: rnd(AvatarManager.parts.faceForm),
             faceColor: rnd(AvatarManager.colors.face),
@@ -77,16 +84,9 @@ class BattleGameClass {
             outfit: rnd(AvatarManager.parts.outfit),
             outfitColor: rnd(AvatarManager.colors.outfit),
         };
-        const svg = AvatarManager.getSVG(80, false);
+        var svg = AvatarManager.getSVG(80, false);
         AvatarManager.current = saved;
-        try {
-            const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
-            const url  = URL.createObjectURL(blob);
-            const img  = new Image();
-            img.onload  = () => { enemy.avatarImg = img; URL.revokeObjectURL(url); };
-            img.onerror = () => { URL.revokeObjectURL(url); };
-            img.src = url;
-        } catch(e) {}
+        this.svgToImage(svg, function(img) { if (img) enemy.avatarImg = img; });
     }
 
     setupControls() {
@@ -488,10 +488,10 @@ class BattleGameClass {
                     this.onSaveFriend(e);
                     p.vy = this.JUMP_VEL * 0.25;
                 } else {
-                    // Wrong enemy — just push player back, no life lost
-                    p.vy = this.JUMP_VEL * 0.3;
-                    p.vx = (p.x < e.x) ? -250 : 250;
-                    p.invTimer = 0.4;
+                    // Hit by wrong enemy — lose a life + knockback
+                    this.playerHit();
+                    p.vy = this.JUMP_VEL * 0.35;
+                    p.vx = (p.x < e.x) ? -280 : 280;
                 }
             }
             break;
