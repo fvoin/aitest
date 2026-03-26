@@ -228,8 +228,8 @@ class BattleGameClass {
         // Inject gaps by pushing ground points down in gap regions
         var gapX = fromX + 400;
         while (gapX < toX - 200) {
-            if (Math.random() < 0.35) {
-                var gapLen = 80 + Math.random() * 80;
+            if (Math.random() < 0.25) {
+                var gapLen = 70 + Math.random() * 60;
                 // Push ground points in the gap below screen
                 for (var gi = 0; gi < this.groundPoints.length; gi++) {
                     var gp = this.groundPoints[gi];
@@ -287,9 +287,17 @@ class BattleGameClass {
         }
 
         if (!correctPlaced) {
-            var bx = fromX + 200 + Math.random() * Math.max(100, toX - fromX - 400);
-            var bgy = this.getGroundYAt(bx);
-            this.enemies.push(this.createEnemy({ x: bx, y: bgy }, q.answer, true));
+            // Find a valid (non-gap) spot for the guaranteed correct enemy
+            var bx = fromX + 200;
+            var bgy;
+            for (var tries = 0; tries < 20; tries++) {
+                bx = fromX + 200 + Math.random() * Math.max(100, toX - fromX - 400);
+                bgy = this.getGroundYAt(bx);
+                if (bgy < this.H + 50) break;
+            }
+            if (bgy < this.H + 50) {
+                this.enemies.push(this.createEnemy({ x: bx, y: bgy }, q.answer, true));
+            }
         }
     }
 
@@ -308,7 +316,7 @@ class BattleGameClass {
 
     cleanupLevel() {
         var behind = this.scrollX - this.W;
-        var ahead = this.scrollX + this.W * 2.5;
+        var ahead = this.scrollX + this.W * 3.5;
         this.platforms = this.platforms.filter(function(p) { return p.x + p.w > behind; });
         // Only keep enemies within a reasonable range of the screen
         this.enemies = this.enemies.filter(function(e) {
@@ -830,47 +838,18 @@ class BattleGameClass {
 
     drawAnimatedSprite(ctx, img, x, y, w, h, walkPhase, slope) {
         if (!img) return;
-        var swing = Math.sin(walkPhase) * 0.12;
+        // Simple walk: vertical bob + slight lean, no clipping seams
+        var bob = Math.abs(Math.sin(walkPhase * 2)) * 3;
+        var lean = Math.sin(walkPhase) * 0.04;
         var cx = x + w/2;
-        var headEnd = y + h * 0.33;   // head boundary
-        var waistY  = y + h * 0.55;   // torso/legs boundary
+        var feet = y + h;
 
+        ctx.save();
         // Lean into slope
-        ctx.save();
-        ctx.translate(cx, y + h);
-        ctx.rotate(slope * 0.4);
-        ctx.translate(-cx, -(y + h));
-
-        // Head — no swing, stays stable
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x - 10, y - 10, w + 20, headEnd - y + 10);
-        ctx.clip();
-        ctx.drawImage(img, x-1, y, w+2, h-4);
-        ctx.restore();
-
-        // Torso + arms — slight counter-swing
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x - 10, headEnd, w + 20, waistY - headEnd);
-        ctx.clip();
-        ctx.translate(cx, waistY);
-        ctx.rotate(-swing * 0.5);
-        ctx.translate(-cx, -waistY);
-        ctx.drawImage(img, x-1, y, w+2, h-4);
-        ctx.restore();
-
-        // Legs — swing
-        ctx.save();
-        ctx.beginPath();
-        ctx.rect(x - 10, waistY, w + 20, h - (waistY - y) + 10);
-        ctx.clip();
-        ctx.translate(cx, waistY);
-        ctx.rotate(swing);
-        ctx.translate(-cx, -waistY);
-        ctx.drawImage(img, x-1, y, w+2, h-4);
-        ctx.restore();
-
+        ctx.translate(cx, feet);
+        ctx.rotate(slope * 0.3 + lean);
+        ctx.translate(-cx, -feet);
+        ctx.drawImage(img, x - 1, y - bob, w + 2, h - 4);
         ctx.restore();
     }
 
