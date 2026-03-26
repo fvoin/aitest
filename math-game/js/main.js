@@ -205,7 +205,7 @@ class MathGameApp {
         // Battle home button
         document.getElementById('battle-home-btn').addEventListener('click', () => {
             this.showConfirmation(
-                'Quit Battle?',
+                'Quit Find Friends?',
                 'Are you sure you want to quit? Your progress will be lost.',
                 () => {
                     battleGame.stopGame();
@@ -588,16 +588,16 @@ class MathGameApp {
         const percentage = Math.round((score / total) * 100);
         let message, phrase;
 
-        if (won && percentage === 100)    { message = 'Perfect! 🌟'; phrase = 'You defeated every monster flawlessly!'; }
-        else if (won)                     { message = 'Victory! 🎉'; phrase = 'All monsters eliminated — well done!'; }
-        else if (percentage >= 60)        { message = 'Good Effort! 👍'; phrase = 'Keep practicing and you\'ll beat them all!'; }
-        else                              { message = 'Try Again! 💪'; phrase = 'Don\'t give up — those monsters are counting on it!'; }
+        if (won && percentage === 100)    { message = 'Perfect! 🌟'; phrase = 'You found all your friends!'; }
+        else if (won)                     { message = 'Victory! 🎉'; phrase = 'All friends rescued — well done!'; }
+        else if (percentage >= 60)        { message = 'Good Effort! 👍'; phrase = 'Keep looking — your friends need you!'; }
+        else                              { message = 'Try Again! 💪'; phrase = 'Don\'t give up — your friends are waiting!'; }
 
         document.getElementById('result-message').textContent = message;
         document.getElementById('final-score').textContent = `${score}/${total}`;
         document.getElementById('inspirational-phrase').textContent = phrase;
-        document.getElementById('mode-icon').textContent = '⚔️';
-        document.getElementById('mode-text').textContent = 'Battle';
+        document.getElementById('mode-icon').textContent = '🤝';
+        document.getElementById('mode-text').textContent = 'Find Friends';
         document.getElementById('range-text').textContent = `Grade ${battleGame.grade}`;
         document.getElementById('timer-text').textContent = battleGame.timerTotal === 0 ? 'No timer' : `${battleGame.timerTotal} seconds`;
         document.getElementById('training-mode-indicator').style.display = 'none';
@@ -682,7 +682,7 @@ class MathGameApp {
                     'division': 'Division',
                     'questions': 'Word Problems',
                     'balloons': 'Balloons',
-                    'battle': 'Battle'
+                    'battle': 'Find Friends'
                 };
                 const operationSVGs = {
                     'addition': '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 5V19M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
@@ -691,7 +691,7 @@ class MathGameApp {
                     'division': '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="7" r="1.5" fill="currentColor"/><path d="M5 12H19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.5" fill="currentColor"/></svg>',
                     'questions': '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M9 9C9 7.34315 10.3431 6 12 6C13.6569 6 15 7.34315 15 9C15 10.1217 14.4118 11.1033 13.5 11.6291C12.7996 12.0387 12 12.4214 12 13.5V14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="18" r="1" fill="currentColor"/></svg>',
                     'balloons': '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="12" cy="10" rx="7" ry="9" stroke="currentColor" stroke-width="2"/><path d="M12 19V24M10 24H14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
-                    'battle': '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 3L16 5.5L13.5 8L17 9.5L15.5 12L12 10.5L10.5 14L9 11.5L5.5 13L7 9.5L3 8L6.5 6.5L5 3L8.5 4.5L10 1L11.5 4.5L14.5 3Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M15 15L21 21M9 15L3 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+                    'battle': '<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="7" r="3" stroke="currentColor" stroke-width="2"/><circle cx="16" cy="7" r="3" stroke="currentColor" stroke-width="2"/><path d="M4 21v-2a4 4 0 014-4h0M20 21v-2a4 4 0 00-4-4h0" stroke="currentColor" stroke-width="2"/><path d="M12 13v4M10 15h4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
                 };
                 
                 const date = new Date(game.date);

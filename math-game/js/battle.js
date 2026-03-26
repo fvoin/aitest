@@ -1,4 +1,4 @@
-// Battle Game — Mario-style side-scrolling platformer
+// Find Friends — Mario-style side-scrolling platformer
 class BattleGameClass {
     constructor() {
         this.GRAVITY      = 880;
@@ -29,6 +29,7 @@ class BattleGameClass {
 
         this.avatarImg    = null;
         this.avatarLoaded = false;
+        this.savedFriends = []; // collected friend avatar images for HUD
         this.COLORS = ['#ff6b6b','#ff9f43','#26de81','#45aaf2','#fd79a8','#a29bfe','#00cec9','#e17055'];
     }
 
@@ -264,6 +265,8 @@ class BattleGameClass {
             patrolDir: Math.random()<0.5?1:-1,
             patrolTimer: Math.random()*2+1,
             onGround: false,
+            // Thank-you fly animation state
+            flyingToHud: false, flyX: 0, flyY: 0, flyAlpha: 1, flyScale: 1,
         };
         this.loadRandomAvatarForEnemy(enemy);
         return enemy;
@@ -276,6 +279,8 @@ class BattleGameClass {
         this.lives = 3; this.questionsCompleted = 0; this.currentQ = 0;
         this.enemies = []; this.platforms = [];
         this.shrapnel = []; this.particles = [];
+        this.savedFriends = [];
+        this.flyingFriends = [];
         this.gameOver = false; this.jumpConsumed = false;
         this.scrollX = 0; this.levelEndX = 0;
 
@@ -310,7 +315,6 @@ class BattleGameClass {
         }
 
         this.updateLivesDisplay();
-        this.updateQDisplay();
         this.isRunning = true; this.gameOver = false;
         this.lastTime = performance.now();
         if (this.animFrame) cancelAnimationFrame(this.animFrame);
@@ -334,6 +338,7 @@ class BattleGameClass {
         this.updateEnemies(dt);
         this.updateShrapnel(dt);
         this.updateParticles(dt);
+        this.updateFlyingFriends(dt);
         this.checkCollisions();
         this.extendLevel();
         this.cleanupLevel();
@@ -426,7 +431,26 @@ class BattleGameClass {
         this.particles = this.particles.filter(p => p.life > 0);
     }
 
-    // ── COLLISION (Mario stomp) ───────────────────────────────────────────────
+    updateFlyingFriends(dt) {
+        for (const f of this.flyingFriends) {
+            f.t += dt * 1.8;
+            if (f.t >= 1) { f.t = 1; f.done = true; }
+            const t = f.t;
+            // Ease out cubic
+            const ease = 1 - Math.pow(1 - t, 3);
+            f.curX = f.startX + (f.targetX - f.startX) * ease;
+            f.curY = f.startY + (f.targetY - f.startY) * ease - Math.sin(t * Math.PI) * 60;
+            f.curScale = 1 - ease * 0.4;
+            f.curAlpha = t < 0.8 ? 1 : 1 - (t - 0.8) / 0.2 * 0.3;
+        }
+        const justLanded = this.flyingFriends.filter(f => f.done);
+        this.flyingFriends = this.flyingFriends.filter(f => !f.done);
+        for (const f of justLanded) {
+            this.savedFriends.push(f.img);
+        }
+    }
+
+    // ── COLLISION ─────────────────────────────────────────────────────────────
 
     checkCollisions() {
         const p = this.player;
@@ -444,15 +468,27 @@ class BattleGameClass {
 
             // Stomp: player falling AND feet in top 25% of enemy
             if (p.vy > 0 && py + ph <= ey + eh * 0.25) {
-                e.alive = false;
                 p.vy = this.JUMP_VEL * 0.55;
-                if (e.isCorrect) this.onStompCorrect(e);
-                else             this.onStompWrong(e);
+                if (e.isCorrect) {
+                    // Stomped a friend — lose a life!
+                    this.onStompFriend(e);
+                } else {
+                    // Stomped a wrong enemy — kill it
+                    e.alive = false;
+                    this.onStompWrong(e);
+                }
             } else {
-                // Side hit — knockback via velocity (no teleport)
-                this.playerHit();
-                p.vy = this.JUMP_VEL * 0.35;
-                p.vx = (p.x < e.x) ? -280 : 280;
+                // Side hit
+                if (e.isCorrect) {
+                    // Found a friend — save them!
+                    this.onSaveFriend(e);
+                    p.vy = this.JUMP_VEL * 0.25;
+                } else {
+                    // Hit by wrong enemy — knockback
+                    this.playerHit();
+                    p.vy = this.JUMP_VEL * 0.35;
+                    p.vx = (p.x < e.x) ? -280 : 280;
+                }
             }
             break;
         }
@@ -470,12 +506,37 @@ class BattleGameClass {
         this.enemies = this.enemies.filter(e => e.alive);
     }
 
-    onStompCorrect(e) {
-        this.spawnParticles(e.x+e.w/2, e.y+e.h/2, '#4CAF50', '#A5D6A7', 16);
+    onStompFriend(e) {
+        // Stomping a friend (correct answer) — you lose a life
+        e.alive = false;
+        this.spawnParticles(e.x+e.w/2, e.y+e.h/2, '#ff3300', '#ff6600', 20);
+        this.playerHit();
+    }
+
+    onSaveFriend(e) {
+        // Side-hit correct answer — save the friend!
+        e.alive = false;
+
+        // Thank-you particles (green/gold)
+        this.spawnParticles(e.x+e.w/2, e.y+e.h/2, '#4CAF50', '#FFD700', 20);
+
+        // Start fly-to-HUD animation
+        const hudIdx = this.savedFriends.length + this.flyingFriends.length;
+        const targetX = 10 + hudIdx * 40;
+        const targetY = 10;
+        this.flyingFriends.push({
+            img: e.avatarImg,
+            startX: e.x - this.scrollX,
+            startY: e.y,
+            targetX, targetY,
+            curX: e.x - this.scrollX, curY: e.y,
+            curScale: 1, curAlpha: 1,
+            t: 0, done: false,
+        });
+
         this.questionsCompleted++;
-        this.updateQDisplay();
         if (this.questionsCompleted >= this.TOTAL_Q) {
-            setTimeout(() => this.endGame(true), 500);
+            setTimeout(() => this.endGame(true), 600);
             return;
         }
         this.currentQ++;
@@ -545,6 +606,9 @@ class BattleGameClass {
         this.drawParticlesWorld();
         this.drawQuestion();
         ctx.restore();
+        // HUD (screen-space, drawn after ctx.restore)
+        this.drawFriendsHUD();
+        this.drawFlyingFriends();
     }
 
     drawBG() {
@@ -695,17 +759,56 @@ class BattleGameClass {
         ctx.globalAlpha = 1;
     }
 
+    drawFriendsHUD() {
+        const ctx = this.ctx;
+        const size = 34;
+        for (let i = 0; i < this.savedFriends.length; i++) {
+            const x = 10 + i * 40;
+            const y = 10;
+            // Green circle background
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.3)';
+            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = '#4CAF50'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
+            if (this.savedFriends[i]) {
+                ctx.drawImage(this.savedFriends[i], x, y, size, size);
+            }
+        }
+        // Draw empty slots for remaining friends
+        for (let i = this.savedFriends.length; i < this.TOTAL_Q; i++) {
+            const x = 10 + i * 40;
+            const y = 10;
+            ctx.fillStyle = 'rgba(200, 200, 200, 0.25)';
+            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.fill();
+            ctx.strokeStyle = 'rgba(200, 200, 200, 0.5)'; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.arc(x + size/2, y + size/2, size/2 + 3, 0, Math.PI*2); ctx.stroke();
+            // Question mark
+            ctx.fillStyle = 'rgba(150, 150, 150, 0.6)';
+            ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
+            ctx.fillText('?', x + size/2, y + size/2 + 6);
+        }
+    }
+
+    drawFlyingFriends() {
+        const ctx = this.ctx;
+        const size = 34;
+        for (const f of this.flyingFriends) {
+            ctx.save();
+            ctx.globalAlpha = f.curAlpha;
+            const s = f.curScale;
+            const drawSize = size * s;
+            if (f.img) {
+                ctx.drawImage(f.img, f.curX - drawSize/2, f.curY - drawSize/2, drawSize, drawSize);
+            }
+            ctx.restore();
+        }
+    }
+
     // ── UI ────────────────────────────────────────────────────────────────────
 
     updateLivesDisplay() {
         const el = document.getElementById('battle-lives');
         if (el) el.innerHTML = '❤️'.repeat(Math.max(0,this.lives))+'🖤'.repeat(Math.max(0,3-this.lives));
-    }
-    updateQDisplay() {
-        const el = document.getElementById('battle-q-count');
-        if (el) el.textContent = this.questionsCompleted;
-        const el2 = document.getElementById('battle-q-total');
-        if (el2) el2.textContent = this.TOTAL_Q;
     }
     updateTimerDisplay() {
         const el = document.getElementById('battle-timer-display');

@@ -80,7 +80,7 @@ class PrizeManagerClass {
             'division': 'Division',
             'questions': 'Word Problems',
             'balloons': 'Balloons',
-            'battle': 'Battle'
+            'battle': 'Find Friends'
         };
         return names[mode] || mode;
     }
@@ -93,7 +93,7 @@ class PrizeManagerClass {
             'division': '÷',
             'questions': '?',
             'balloons': '🎈',
-            'battle': '⚔️'
+            'battle': '🤝'
         };
         return icons[mode] || '+';
     }
@@ -348,7 +348,7 @@ class PrizeManagerClass {
                 <option value="division" ${defaultMode === 'division' ? 'selected' : ''}>÷ Division</option>
                 <option value="questions" ${defaultMode === 'questions' ? 'selected' : ''}>? Word Problems</option>
                 <option value="balloons" ${defaultMode === 'balloons' ? 'selected' : ''}>🎈 Balloons</option>
-                <option value="battle" ${defaultMode === 'battle' ? 'selected' : ''}>⚔️ Battle</option>
+                <option value="battle" ${defaultMode === 'battle' ? 'selected' : ''}>🤝 Find Friends</option>
             </select>
             <select class="task-param" data-index="${taskIndex}">
                 ${this.renderParamOptions(defaultMode, taskData && taskData.rangeOrGrade)}
