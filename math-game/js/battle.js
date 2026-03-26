@@ -380,10 +380,8 @@ class BattleGameClass {
             }
         }
 
-        // Fell into pit
+        // Fell into pit — respawn without penalty
         if (p.y > this.H + 40) {
-            this.playerHit();
-            // Respawn on nearest ground ahead
             const rx = p.x + 60;
             const surf = this.findSurfaceAt(rx) || this.findSurfaceAt(rx+100) || { y: this.H - this.GH };
             p.x = rx; p.y = surf.y - p.h; p.vy = 0;
@@ -490,10 +488,10 @@ class BattleGameClass {
                     this.onSaveFriend(e);
                     p.vy = this.JUMP_VEL * 0.25;
                 } else {
-                    // Hit by wrong enemy — knockback
-                    this.playerHit();
-                    p.vy = this.JUMP_VEL * 0.35;
-                    p.vx = (p.x < e.x) ? -280 : 280;
+                    // Wrong enemy — just push player back, no life lost
+                    p.vy = this.JUMP_VEL * 0.3;
+                    p.vx = (p.x < e.x) ? -250 : 250;
+                    p.invTimer = 0.4;
                 }
             }
             break;
