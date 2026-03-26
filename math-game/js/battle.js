@@ -114,16 +114,12 @@ class BattleGameClass {
     // ── CANVAS ────────────────────────────────────────────────────────────────
 
     resizeCanvas() {
-        const vv = window.visualViewport || { width: window.innerWidth, height: window.innerHeight };
-        const hdr  = document.getElementById('battle-header');
-        const ctrl = document.getElementById('battle-controls');
-        const hh = hdr ? hdr.offsetHeight : 52;
-        const ch = ctrl ? ctrl.offsetHeight : 92;
-        const W = vv.width;
-        const H = Math.max(150, vv.height - hh - ch);
-        this.canvas.width = W; this.canvas.height = H;
-        this.canvas.style.width  = W + 'px';
-        this.canvas.style.height = H + 'px';
+        const wrap = document.getElementById('battle-canvas-wrap');
+        if (!wrap) return;
+        const W = wrap.clientWidth;
+        const H = wrap.clientHeight;
+        this.canvas.width = W;
+        this.canvas.height = H;
         this.W = W; this.H = H;
     }
 
