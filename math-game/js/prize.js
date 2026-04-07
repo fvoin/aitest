@@ -116,8 +116,8 @@ class PrizeManagerClass {
             return { awarded: false, coins: 0 };
         }
 
-        // Need at least 8/10 to earn coins
-        if (score < 8 || total < 10) {
+        // Need at least 80% correct to earn coins
+        if (score / total < 0.8) {
             return { awarded: false, coins: 0 };
         }
 

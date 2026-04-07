@@ -3,7 +3,7 @@ class BattleGameClass {
     constructor() {
         this.GRAVITY      = 880;
         this.PLAYER_SPEED = 200;
-        this.JUMP_VEL     = -440;
+        this.JUMP_VEL     = -550;
         this.TOTAL_Q      = 3;
         this.GH           = 110;  // ground depth below ground line
 
