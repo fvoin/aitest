@@ -501,15 +501,21 @@ const AvatarManager = {
                 </g>`;
             case 'outfit-nahida':
                 return `<g class="avatar-body">
-                    <path d="M40 75 L33 93 H67 L60 75 Z" fill="#f0f0e8"/>
-                    <path d="M40 75 H60" stroke="#4a8c5c" stroke-width="2"/>
-                    <path d="M40 75 L28 85" stroke="#f0f0e8" stroke-width="4" stroke-linecap="round"/>
-                    <path d="M60 75 L72 85" stroke="#f0f0e8" stroke-width="4" stroke-linecap="round"/>
-                    <path d="M36 88 Q50 95 64 88" fill="#4a8c5c"/>
-                    <path d="M46 78 Q50 76 54 78" stroke="#4a8c5c" stroke-width="1.5" fill="none"/>
-                    <circle cx="50" cy="80" r="2" fill="#7cfc00" opacity="0.7"/>
-                    <path d="M42 85 Q44 83 46 85" stroke="#4a8c5c" stroke-width="0.8" fill="none" opacity="0.5"/>
-                    <path d="M54 85 Q56 83 58 85" stroke="#4a8c5c" stroke-width="0.8" fill="none" opacity="0.5"/>
+                    <!-- Cape / cloak behind -->
+                    <path d="M36 76 L30 93 H70 L64 76 Z" fill="#3d8c52" opacity="0.6"/>
+                    <!-- Main white top -->
+                    <rect x="38" y="75" width="24" height="10" rx="3" fill="#f5f0e0"/>
+                    <!-- Green collar / neckline -->
+                    <path d="M42 75 Q50 73 58 75" stroke="#3d8c52" stroke-width="2" fill="none"/>
+                    <!-- Gem at center -->
+                    <path d="M50 77 L52 79 L50 81 L48 79 Z" fill="#7cfc00"/>
+                    <path d="M50 77 L52 79 L50 81 L48 79 Z" fill="none" stroke="#2e7d32" stroke-width="0.5"/>
+                    <!-- Leafy skirt -->
+                    <path d="M36 85 L38 93 L43 88 L48 93 L50 89 L52 93 L57 88 L62 93 L64 85 Z" fill="#4caf50"/>
+                    <path d="M38 85 L40 93 L44 89 L48 93 L50 90 L52 93 L56 89 L60 93 L62 85" fill="none" stroke="#2e7d32" stroke-width="0.7"/>
+                    <!-- Puffy sleeves -->
+                    <ellipse cx="33" cy="79" rx="5" ry="4" fill="#f5f0e0" stroke="#3d8c52" stroke-width="0.8"/>
+                    <ellipse cx="67" cy="79" rx="5" ry="4" fill="#f5f0e0" stroke="#3d8c52" stroke-width="0.8"/>
                 </g>`;
             case 'outfit-muzan':
                 return `<g class="avatar-body">
