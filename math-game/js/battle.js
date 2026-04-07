@@ -37,6 +37,11 @@ class BattleGameClass {
         this.avatarLoaded = false;
         this.savedFriends = [];
         this.COLORS = ['#ff6b6b','#ff9f43','#26de81','#45aaf2','#fd79a8','#a29bfe','#00cec9','#e17055'];
+
+        // Boss fight state
+        this.bossPhase    = false;
+        this.boss         = null;  // { x, y, hp, tentacles[], question }
+        this.bossIntroTimer = 0;
     }
 
     // ── INIT ──────────────────────────────────────────────────────────────────
@@ -400,6 +405,7 @@ class BattleGameClass {
         this.groundPoints = [];
         this.savedFriends = [];
         this.flyingFriends = [];
+        this.bossPhase = false; this.boss = null; this.bossIntroTimer = 0;
         this.gameOver = false; this.jumpConsumed = false;
         this.scrollX = 0; this.levelEndX = 0;
 
@@ -455,13 +461,17 @@ class BattleGameClass {
     update(dt) {
         if (this.gameOver) return;
         this.updatePlayer(dt);
-        this.updateEnemies(dt);
+        if (this.bossPhase) {
+            this.updateBoss(dt);
+        } else {
+            this.updateEnemies(dt);
+            this.checkCollisions();
+            this.extendLevel();
+            this.cleanupLevel();
+        }
         this.updateShrapnel(dt);
         this.updateParticles(dt);
         this.updateFlyingFriends(dt);
-        this.checkCollisions();
-        this.extendLevel();
-        this.cleanupLevel();
 
         var targetX = Math.max(0, this.player.x - this.W * 0.35);
         this.scrollX += (targetX - this.scrollX) * 0.1;
@@ -699,7 +709,7 @@ class BattleGameClass {
         });
         this.questionsCompleted++;
         if (this.questionsCompleted >= this.TOTAL_Q) {
-            setTimeout(function() { this.endGame(true); }.bind(this), 600);
+            this.startBossPhase();
             return;
         }
         this.currentQ++;
@@ -765,13 +775,18 @@ class BattleGameClass {
         this.drawGround();
         this.drawPlatforms();
         this.drawShrapnelWorld();
-        this.drawEnemies();
+        if (this.bossPhase) {
+            this.drawBoss();
+        } else {
+            this.drawEnemies();
+        }
         this.drawPlayer();
         this.drawParticlesWorld();
-        this.drawQuestion();
+        if (!this.bossPhase) this.drawQuestion();
         ctx.restore();
         this.drawFriendsHUD();
         this.drawFlyingFriends();
+        if (this.bossPhase && this.bossIntroTimer > 0) this.drawBossIntro();
     }
 
     drawBG() {
@@ -1049,14 +1064,311 @@ class BattleGameClass {
         if (el) el.textContent = this.timerRemaining+'s';
     }
 
+    // ── BOSS FIGHT ─────────────────────────────────────────────────────────
+
+    startBossPhase() {
+        this.bossPhase = true;
+        this.bossIntroTimer = 2.0;
+        // Remove all regular enemies
+        this.enemies = [];
+
+        var q = this.makeQuestion();
+        var bossX = this.player.x + this.W * 0.9;
+        var groundY = this.getGroundYAt(bossX);
+
+        // Flatten ground around boss arena
+        var arenaStart = bossX - 300;
+        var arenaEnd   = bossX + 300;
+        for (var i = 0; i < this.groundPoints.length; i++) {
+            var gp = this.groundPoints[i];
+            if (gp.x >= arenaStart && gp.x <= arenaEnd) {
+                gp.y = groundY;
+            }
+        }
+
+        // Build 5 tentacles: 1 correct + 4 wrong
+        var answers = [q.answer];
+        var wrongs = q.wrongs.slice(0, 4);
+        while (wrongs.length < 4) wrongs.push(q.answer + Math.floor(Math.random()*10) + 1);
+        answers = answers.concat(wrongs);
+        bShuffle(answers);
+
+        var tentacles = [];
+        var spacing = 100;
+        var startX = bossX - spacing * 2;
+        for (var t = 0; t < 5; t++) {
+            tentacles.push({
+                x: startX + t * spacing,
+                baseY: groundY,
+                answer: answers[t],
+                isCorrect: answers[t] === q.answer,
+                alive: true,
+                phase: Math.random() * Math.PI * 2,
+                height: 120 + Math.random() * 40,
+                swaySpeed: 1.5 + Math.random() * 1.5,
+                hitCooldown: 0,
+            });
+        }
+
+        this.boss = {
+            x: bossX,
+            y: groundY - 180,
+            question: q,
+            tentacles: tentacles,
+            time: 0,
+            shakeTimer: 0,
+            defeated: false,
+        };
+    }
+
+    updateBoss(dt) {
+        var b = this.boss;
+        if (!b || b.defeated) return;
+        b.time += dt;
+        if (b.shakeTimer > 0) b.shakeTimer -= dt;
+
+        // Update tentacle cooldowns
+        for (var i = 0; i < b.tentacles.length; i++) {
+            var t = b.tentacles[i];
+            if (t.hitCooldown > 0) t.hitCooldown -= dt;
+        }
+
+        // Skip collision during intro
+        if (this.bossIntroTimer > 0) {
+            this.bossIntroTimer -= dt;
+            return;
+        }
+
+        this.checkBossCollisions();
+    }
+
+    checkBossCollisions() {
+        var p = this.player;
+        var b = this.boss;
+        if (!p || !b || p.invTimer > 0) return;
+
+        var px = p.x + 8, py = p.y + 5, pw = p.w - 16, ph = p.h - 5;
+
+        for (var i = 0; i < b.tentacles.length; i++) {
+            var t = b.tentacles[i];
+            if (!t.alive || t.hitCooldown > 0) continue;
+
+            // Tentacle hitbox: a vertical column that sways
+            var sway = Math.sin(b.time * t.swaySpeed + t.phase) * 25;
+            var tx = t.x + sway - 18;
+            var ty = t.baseY - t.height;
+            var tw = 36;
+            var th = t.height;
+
+            if (!(px + pw > tx && px < tx + tw && py + ph > ty && py < ty + th)) continue;
+
+            // Player stomps from above
+            if (p.vy > 0 && p.prevY + p.h <= ty + th * 0.35) {
+                p.vy = this.JUMP_VEL * 0.6;
+                if (t.isCorrect) {
+                    // Stomping the correct one hurts the player
+                    this.playerHit();
+                    t.hitCooldown = 1.0;
+                    b.shakeTimer = 0.3;
+                } else {
+                    // Destroy wrong tentacle
+                    t.alive = false;
+                    this.spawnParticles(t.x + sway, ty + th * 0.3, '#8B45A6', '#DA70D6', 30);
+                    this.spawnShrapnel(t.x + sway, ty + th * 0.3, 20);
+                    b.shakeTimer = 0.4;
+                    // Check win: all wrong destroyed?
+                    var wrongAlive = b.tentacles.filter(function(tt) { return tt.alive && !tt.isCorrect; }).length;
+                    if (wrongAlive === 0) {
+                        b.defeated = true;
+                        this.spawnParticles(b.x, b.y, '#FFD700', '#FF6347', 50);
+                        this.spawnParticles(b.x, b.y, '#4CAF50', '#00BCD4', 40);
+                        setTimeout(function() { this.endGame(true); }.bind(this), 800);
+                    }
+                }
+            } else {
+                // Player walks into tentacle — take damage
+                this.playerHit();
+                p.vy = this.JUMP_VEL * 0.4;
+                p.vx = (p.x < t.x) ? -300 : 300;
+                t.hitCooldown = 0.5;
+            }
+            break;
+        }
+    }
+
+    drawBoss() {
+        var b = this.boss;
+        if (!b) return;
+        var ctx = this.ctx;
+        var shake = b.shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+
+        // Draw tentacles
+        for (var i = 0; i < b.tentacles.length; i++) {
+            var t = b.tentacles[i];
+            if (!t.alive) continue;
+            var sway = Math.sin(b.time * t.swaySpeed + t.phase) * 25;
+            var baseX = t.x + sway;
+            var baseY = t.baseY;
+            var topY  = baseY - t.height;
+
+            // Tentacle body — thick wavy line with suckers
+            ctx.save();
+            ctx.lineWidth = 22;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = '#7B3FA0';
+            ctx.beginPath();
+            ctx.moveTo(t.x, baseY);
+            var cp1x = t.x + sway * 0.3, cp1y = baseY - t.height * 0.33;
+            var cp2x = baseX + sway * 0.7, cp2y = baseY - t.height * 0.66;
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, baseX, topY);
+            ctx.stroke();
+
+            // Inner lighter line
+            ctx.lineWidth = 12;
+            ctx.strokeStyle = '#9B59B6';
+            ctx.beginPath();
+            ctx.moveTo(t.x, baseY);
+            ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, baseX, topY);
+            ctx.stroke();
+
+            // Suckers
+            ctx.fillStyle = '#DA70D6';
+            for (var s = 0.2; s <= 0.8; s += 0.3) {
+                var sx = t.x + (baseX - t.x) * s + sway * s * 0.5;
+                var sy = baseY - t.height * s;
+                ctx.beginPath(); ctx.arc(sx - 5, sy, 4, 0, Math.PI * 2); ctx.fill();
+                ctx.beginPath(); ctx.arc(sx + 5, sy, 4, 0, Math.PI * 2); ctx.fill();
+            }
+
+            // Tip
+            ctx.fillStyle = '#9B59B6';
+            ctx.beginPath(); ctx.arc(baseX, topY, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.restore();
+
+            // Answer label on tentacle
+            var ans = String(t.answer);
+            ctx.font = 'bold 18px Arial';
+            var tw2 = ctx.measureText(ans).width;
+            var lw = tw2 + 18, lh = 28;
+            var lx = baseX - lw / 2, ly = topY - lh - 8;
+            ctx.fillStyle = t.isCorrect ? 'rgba(76,175,80,0.9)' : 'rgba(25,25,45,0.88)';
+            bRR(ctx, lx, ly, lw, lh, 8); ctx.fill();
+            ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
+            ctx.fillText(ans, baseX, ly + lh - 7);
+        }
+
+        // Draw octopus body
+        var bx = b.x + shake;
+        var by = b.y + Math.sin(b.time * 1.2) * 8;
+        var bodyR = 65;
+
+        // Body
+        ctx.fillStyle = '#6B2D8B';
+        ctx.beginPath(); ctx.ellipse(bx, by, bodyR, bodyR * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8B45A6';
+        ctx.beginPath(); ctx.ellipse(bx, by, bodyR * 0.85, bodyR * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+
+        // Eyes
+        var wrongAlive = b.tentacles.filter(function(tt) { return tt.alive && !tt.isCorrect; }).length;
+        var eyeOffY = b.defeated ? 5 : 0;
+        // Left eye
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.ellipse(bx - 22, by - 8 + eyeOffY, 18, 20, 0, 0, Math.PI * 2); ctx.fill();
+        // Right eye
+        ctx.beginPath(); ctx.ellipse(bx + 22, by - 8 + eyeOffY, 18, 20, 0, 0, Math.PI * 2); ctx.fill();
+        // Pupils — track player
+        var pupilX = 0, pupilY = 0;
+        if (this.player) {
+            var dx = (this.player.x + this.player.w / 2) - bx;
+            var dy = (this.player.y + this.player.h / 2) - by;
+            var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            pupilX = (dx / dist) * 6;
+            pupilY = (dy / dist) * 6;
+        }
+        ctx.fillStyle = b.defeated ? '#999' : (wrongAlive <= 1 ? '#ff3300' : '#1a1a2e');
+        ctx.beginPath(); ctx.arc(bx - 22 + pupilX, by - 8 + pupilY + eyeOffY, 8, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + 22 + pupilX, by - 8 + pupilY + eyeOffY, 8, 0, Math.PI * 2); ctx.fill();
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.arc(bx - 25, by - 14 + eyeOffY, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + 19, by - 14 + eyeOffY, 4, 0, Math.PI * 2); ctx.fill();
+
+        // Mouth
+        if (b.defeated) {
+            ctx.strokeStyle = '#4a2060';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(bx - 15, by + 25);
+            ctx.quadraticCurveTo(bx, by + 15, bx + 15, by + 25);
+            ctx.stroke();
+        } else if (wrongAlive <= 1) {
+            // Angry mouth
+            ctx.fillStyle = '#ff3300';
+            ctx.beginPath();
+            ctx.moveTo(bx - 12, by + 18);
+            ctx.quadraticCurveTo(bx, by + 30, bx + 12, by + 18);
+            ctx.closePath(); ctx.fill();
+        } else {
+            ctx.fillStyle = '#4a2060';
+            ctx.beginPath(); ctx.ellipse(bx, by + 22, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Defeated X overlay
+        if (b.defeated) {
+            ctx.save();
+            ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(bx - 40, by - 40); ctx.lineTo(bx + 40, by + 40);
+            ctx.moveTo(bx + 40, by - 40); ctx.lineTo(bx - 40, by + 40);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Question above boss
+        if (!b.defeated) {
+            var qText = b.question.text;
+            ctx.font = 'bold 24px Arial';
+            var qtw = ctx.measureText(qText).width;
+            var qbw = qtw + 30, qbh = 40;
+            var qbx = bx - qbw / 2, qby = by - bodyR - qbh - 15;
+            ctx.fillStyle = 'rgba(255,255,255,0.96)';
+            ctx.strokeStyle = '#8B45A6'; ctx.lineWidth = 3;
+            bRR(ctx, qbx, qby, qbw, qbh, 12); ctx.fill(); ctx.stroke();
+            ctx.fillStyle = '#333'; ctx.textAlign = 'center';
+            ctx.fillText(qText, bx, qby + qbh - 10);
+        }
+    }
+
+    drawBossIntro() {
+        var ctx = this.ctx;
+        var alpha = Math.min(1, this.bossIntroTimer / 0.5);
+        ctx.save();
+        ctx.fillStyle = 'rgba(0,0,0,' + (alpha * 0.4) + ')';
+        ctx.fillRect(0, 0, this.W, this.H);
+        ctx.globalAlpha = alpha;
+        ctx.font = 'bold 48px Arial';
+        ctx.fillStyle = '#ff3300';
+        ctx.textAlign = 'center';
+        ctx.strokeStyle = '#000'; ctx.lineWidth = 4;
+        ctx.strokeText('BOSS FIGHT!', this.W / 2, this.H / 2);
+        ctx.fillText('BOSS FIGHT!', this.W / 2, this.H / 2);
+        ctx.font = '20px Arial';
+        ctx.fillStyle = '#fff';
+        ctx.fillText('Jump on wrong answers to destroy tentacles!', this.W / 2, this.H / 2 + 40);
+        ctx.restore();
+    }
+
     endGame(won) {
         if (this.gameOver) return;
         this.gameOver = true; this.isRunning = false;
         if (this.animFrame) cancelAnimationFrame(this.animFrame);
         if (this.timerInterval) clearInterval(this.timerInterval);
         this.controls = { left:false, right:false, jump:false };
+        var totalQ = this.TOTAL_Q + (this.bossPhase ? 1 : 0);
+        var score = this.questionsCompleted + (won && this.bossPhase ? 1 : 0);
         if (typeof app !== 'undefined')
-            setTimeout(function() { app.showBattleResults(this.questionsCompleted, this.TOTAL_Q, won); }.bind(this), 420);
+            setTimeout(function() { app.showBattleResults(score, totalQ, won); }.bind(this), 420);
     }
 
     stopGame() {
