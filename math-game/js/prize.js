@@ -208,7 +208,7 @@ class PrizeManagerClass {
                     <div class="prize-bar">
                         <div class="prize-bar-fill" style="width: ${progress}%"></div>
                     </div>
-                    ${this.prize.spentCoins > 0 ? `<div class="prize-total-earned">Всего заработано: ${totalEarned} (потрачено в магазине: ${this.prize.spentCoins})</div>` : ''}
+                    ${this.prize.spentCoins > 0 ? `<div class="prize-total-earned">Total earned: ${totalEarned} (spent in shop: ${this.prize.spentCoins})</div>` : ''}
                     ${isComplete ? '<div class="prize-complete-text">🎉 Prize Ready! Tap to claim!</div>' : ''}
                 </div>
             `;

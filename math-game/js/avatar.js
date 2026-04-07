@@ -78,14 +78,14 @@ const AvatarManager = {
 
     // Shop items definition
     shopItems: [
-        { id: 'outfit-tanjiro',  type: 'outfit',    name: 'Костюм Танзиро',  price: 50,  icon: '⚔️' },
-        { id: 'outfit-shinobu',  type: 'outfit',    name: 'Костюм Шинобу',   price: 20,  icon: '🦋' },
-        { id: 'acc-katana-tanjiro', type: 'accessory', name: 'Катана Танзиро', price: 50,  icon: '🗡️' },
-        { id: 'acc-katana-shinobu', type: 'accessory', name: 'Катана Шинобу', price: 100, icon: '🗡️' },
-        { id: 'outfit-nahida',   type: 'outfit',    name: 'Костюм Нахиды',   price: 10,  icon: '🌿' },
-        { id: 'acc-nahida-magic', type: 'accessory', name: 'Магия Нахиды',   price: 90,  icon: '✨' },
-        { id: 'outfit-muzan',    type: 'outfit',    name: 'Костюм Музана',   price: 500, icon: '🌙' },
-        { id: 'acc-muzan-magic',  type: 'accessory', name: 'Магия Музана',   price: 300, icon: '🩸' },
+        { id: 'outfit-tanjiro',  type: 'outfit',    name: 'Tanjiro Outfit',    price: 50,  icon: '⚔️' },
+        { id: 'outfit-shinobu',  type: 'outfit',    name: 'Shinobu Outfit',    price: 20,  icon: '🦋' },
+        { id: 'acc-katana-tanjiro', type: 'accessory', name: 'Tanjiro Katana', price: 50,  icon: '🗡️' },
+        { id: 'acc-katana-shinobu', type: 'accessory', name: 'Shinobu Katana', price: 100, icon: '🗡️' },
+        { id: 'outfit-nahida',   type: 'outfit',    name: 'Nahida Outfit',     price: 10,  icon: '🌿' },
+        { id: 'acc-nahida-magic', type: 'accessory', name: 'Nahida Magic',     price: 90,  icon: '✨' },
+        { id: 'outfit-muzan',    type: 'outfit',    name: 'Muzan Outfit',      price: 500, icon: '🌙' },
+        { id: 'acc-muzan-magic',  type: 'accessory', name: 'Muzan Magic',     price: 300, icon: '🩸' },
     ],
 
     purchasedItems: [],
@@ -501,12 +501,15 @@ const AvatarManager = {
                 </g>`;
             case 'outfit-nahida':
                 return `<g class="avatar-body">
-                    <rect x="35" y="75" width="30" height="18" rx="5" fill="#f0f0e8"/>
-                    <path d="M35 80 L28 85 L30 90 L35 85" fill="#f0f0e8"/>
-                    <path d="M65 80 L72 85 L70 90 L65 85" fill="#f0f0e8"/>
-                    <path d="M38 88 Q50 95 62 88" fill="#4a8c5c" stroke="#3a7a4c" stroke-width="1"/>
-                    <path d="M45 80 Q50 78 55 80" stroke="#4a8c5c" stroke-width="1.5" fill="none"/>
-                    <circle cx="50" cy="78" r="2" fill="#7cfc00" opacity="0.6"/>
+                    <path d="M40 75 L33 93 H67 L60 75 Z" fill="#f0f0e8"/>
+                    <path d="M40 75 H60" stroke="#4a8c5c" stroke-width="2"/>
+                    <path d="M40 75 L28 85" stroke="#f0f0e8" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M60 75 L72 85" stroke="#f0f0e8" stroke-width="4" stroke-linecap="round"/>
+                    <path d="M36 88 Q50 95 64 88" fill="#4a8c5c"/>
+                    <path d="M46 78 Q50 76 54 78" stroke="#4a8c5c" stroke-width="1.5" fill="none"/>
+                    <circle cx="50" cy="80" r="2" fill="#7cfc00" opacity="0.7"/>
+                    <path d="M42 85 Q44 83 46 85" stroke="#4a8c5c" stroke-width="0.8" fill="none" opacity="0.5"/>
+                    <path d="M54 85 Q56 83 58 85" stroke="#4a8c5c" stroke-width="0.8" fill="none" opacity="0.5"/>
                 </g>`;
             case 'outfit-muzan':
                 return `<g class="avatar-body">
@@ -637,20 +640,22 @@ const AvatarManager = {
         // Shop accessories
         switch(this.current.accessory) {
             case 'acc-katana-tanjiro':
-                return `<g>
-                    <line x1="8" y1="25" x2="8" y2="95" stroke="#222" stroke-width="3"/>
-                    <line x1="8" y1="30" x2="8" y2="90" stroke="#333" stroke-width="2.5"/>
-                    <rect x="4" y="25" width="8" height="4" rx="1" fill="#8B0000"/>
-                    <rect x="3" y="22" width="10" height="3" rx="1" fill="#C0C0C0"/>
+                return `<g transform="translate(75,90) rotate(-30)">
+                    <rect x="-1.5" y="-40" width="3" height="35" rx="0.5" fill="#333"/>
+                    <rect x="-1" y="-42" width="2" height="3" fill="#C0C0C0"/>
+                    <rect x="-3" y="-5" width="6" height="3" rx="1" fill="#C0C0C0"/>
+                    <rect x="-2" y="-2" width="4" height="8" rx="1" fill="#8B0000"/>
+                    <path d="M-1.5 -2 L-1.5 6 M1.5 -2 L1.5 6" stroke="#222" stroke-width="0.5" opacity="0.4"/>
                 </g>`;
             case 'acc-katana-shinobu':
-                return `<g>
-                    <line x1="92" y1="25" x2="92" y2="95" stroke="#7b3fa0" stroke-width="2.5"/>
-                    <line x1="92" y1="30" x2="92" y2="90" stroke="#9b59b6" stroke-width="2"/>
-                    <rect x="88" y="25" width="8" height="4" rx="1" fill="#ff69b4"/>
-                    <rect x="87" y="22" width="10" height="3" rx="1" fill="#C0C0C0"/>
-                    <path d="M89 50 Q92 48 95 50 Q92 52 89 50" fill="#da70d6" opacity="0.5"/>
-                    <path d="M89 65 Q92 63 95 65 Q92 67 89 65" fill="#da70d6" opacity="0.5"/>
+                return `<g transform="translate(25,90) rotate(30)">
+                    <rect x="-1.5" y="-40" width="3" height="35" rx="0.5" fill="#9b59b6"/>
+                    <rect x="-1" y="-42" width="2" height="3" fill="#C0C0C0"/>
+                    <rect x="-3" y="-5" width="6" height="3" rx="1" fill="#C0C0C0"/>
+                    <rect x="-2" y="-2" width="4" height="8" rx="1" fill="#ff69b4"/>
+                    <path d="M-1.5 -2 L-1.5 6 M1.5 -2 L1.5 6" stroke="#7b3fa0" stroke-width="0.5" opacity="0.4"/>
+                    <circle cx="0" cy="-20" r="2" fill="#da70d6" opacity="0.4"/>
+                    <circle cx="0" cy="-32" r="2" fill="#da70d6" opacity="0.4"/>
                 </g>`;
             case 'acc-nahida-magic':
                 return `<g>
@@ -727,8 +732,8 @@ const AvatarManager = {
                 ${this.getSVG(150)}
             </div>
             <div class="avatar-tabs">
-                <button class="avatar-tab ${activeTab === 'editor' ? 'active' : ''}" data-tab="editor">Аватар</button>
-                <button class="avatar-tab ${activeTab === 'shop' ? 'active' : ''}" data-tab="shop">Магазин</button>
+                <button class="avatar-tab ${activeTab === 'editor' ? 'active' : ''}" data-tab="editor">Avatar</button>
+                <button class="avatar-tab ${activeTab === 'shop' ? 'active' : ''}" data-tab="shop">Shop</button>
             </div>
         `;
 
@@ -808,9 +813,9 @@ const AvatarManager = {
             <div class="shop-balance">
                 <div class="shop-balance-current">
                     ${typeof PrizeManager !== 'undefined' ? PrizeManager.getCoinSvg('shop-coin-icon') : ''}
-                    <span>${coins} монет</span>
+                    <span>${coins} coins</span>
                 </div>
-                <div class="shop-balance-total">Всего заработано: ${totalEarned}</div>
+                <div class="shop-balance-total">Total earned: ${totalEarned}</div>
             </div>
             <div class="shop-items">
         `;
@@ -819,17 +824,17 @@ const AvatarManager = {
             const owned = this.isItemPurchased(item.id);
             const equipped = this.current.outfit === item.id || this.current.accessory === item.id;
             const canAfford = coins >= item.price;
-            const typeLabel = item.type === 'outfit' ? 'Костюм' : 'Аксессуар';
+            const typeLabel = item.type === 'outfit' ? 'Outfit' : 'Accessory';
 
             let btnHtml;
             if (equipped) {
-                btnHtml = `<button class="shop-item-btn equipped" disabled>Надето</button>`;
+                btnHtml = `<button class="shop-item-btn equipped" disabled>Wearing</button>`;
             } else if (owned) {
-                btnHtml = `<button class="shop-item-btn equip" data-item-id="${item.id}">Надеть</button>`;
+                btnHtml = `<button class="shop-item-btn equip" data-item-id="${item.id}">Equip</button>`;
             } else if (canAfford) {
-                btnHtml = `<button class="shop-item-btn buy" data-item-id="${item.id}">Купить</button>`;
+                btnHtml = `<button class="shop-item-btn buy" data-item-id="${item.id}">Buy</button>`;
             } else {
-                btnHtml = `<button class="shop-item-btn cant-afford" disabled>${item.price} монет</button>`;
+                btnHtml = `<button class="shop-item-btn cant-afford" disabled>${item.price} coins</button>`;
             }
 
             html += `
@@ -837,7 +842,7 @@ const AvatarManager = {
                     <div class="shop-item-icon">${item.icon}</div>
                     <div class="shop-item-info">
                         <div class="shop-item-name">${item.name}</div>
-                        <div class="shop-item-meta">${typeLabel} · ${item.price} монет</div>
+                        <div class="shop-item-meta">${typeLabel} · ${item.price} coins</div>
                     </div>
                     ${btnHtml}
                 </div>
@@ -942,14 +947,14 @@ const AvatarManager = {
             'sweater': '🧶 Sweater',
             'polo': '👔 Polo',
             // Shop items
-            'outfit-tanjiro': '⚔️ Танзиро',
-            'outfit-shinobu': '🦋 Шинобу',
-            'outfit-nahida': '🌿 Нахида',
-            'outfit-muzan': '🌙 Музан',
-            'acc-katana-tanjiro': '⚔️ Катана Танзиро',
-            'acc-katana-shinobu': '🗡️ Катана Шинобу',
-            'acc-nahida-magic': '✨ Магия Нахиды',
-            'acc-muzan-magic': '🩸 Магия Музана'
+            'outfit-tanjiro': '⚔️ Tanjiro',
+            'outfit-shinobu': '🦋 Shinobu',
+            'outfit-nahida': '🌿 Nahida',
+            'outfit-muzan': '🌙 Muzan',
+            'acc-katana-tanjiro': '⚔️ Tanjiro Katana',
+            'acc-katana-shinobu': '🗡️ Shinobu Katana',
+            'acc-nahida-magic': '✨ Nahida Magic',
+            'acc-muzan-magic': '🩸 Muzan Magic'
         };
         
         return `
