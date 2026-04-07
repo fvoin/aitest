@@ -76,6 +76,21 @@ const AvatarManager = {
         'gradient-fire': ['#FF4500', '#FF6347', '#FFD700']
     },
 
+    // Shop items definition
+    shopItems: [
+        { id: 'outfit-tanjiro',  type: 'outfit',    name: 'Костюм Танзиро',  price: 50,  icon: '⚔️' },
+        { id: 'outfit-shinobu',  type: 'outfit',    name: 'Костюм Шинобу',   price: 20,  icon: '🦋' },
+        { id: 'acc-katana-tanjiro', type: 'accessory', name: 'Катана Танзиро', price: 50,  icon: '🗡️' },
+        { id: 'acc-katana-shinobu', type: 'accessory', name: 'Катана Шинобу', price: 100, icon: '🗡️' },
+        { id: 'outfit-nahida',   type: 'outfit',    name: 'Костюм Нахиды',   price: 10,  icon: '🌿' },
+        { id: 'acc-nahida-magic', type: 'accessory', name: 'Магия Нахиды',   price: 90,  icon: '✨' },
+        { id: 'outfit-muzan',    type: 'outfit',    name: 'Костюм Музана',   price: 500, icon: '🌙' },
+        { id: 'acc-muzan-magic',  type: 'accessory', name: 'Магия Музана',   price: 300, icon: '🩸' },
+    ],
+
+    purchasedItems: [],
+    SHOP_STORAGE_KEY: 'mathGameShopPurchases',
+
     current: {
         faceForm: 'round',
         faceColor: '#FFDBAC',
@@ -91,9 +106,51 @@ const AvatarManager = {
     },
 
     init() {
+        this.loadShopPurchases();
         this.load();
         this.renderAll();
         this.setupEditor();
+    },
+
+    loadShopPurchases() {
+        const saved = localStorage.getItem(this.SHOP_STORAGE_KEY);
+        this.purchasedItems = saved ? JSON.parse(saved) : [];
+    },
+
+    saveShopPurchases() {
+        localStorage.setItem(this.SHOP_STORAGE_KEY, JSON.stringify(this.purchasedItems));
+    },
+
+    isItemPurchased(itemId) {
+        return this.purchasedItems.includes(itemId);
+    },
+
+    buyItem(itemId) {
+        const item = this.shopItems.find(i => i.id === itemId);
+        if (!item || this.isItemPurchased(itemId)) return false;
+        if (typeof PrizeManager === 'undefined' || !PrizeManager.prize) return false;
+        if (PrizeManager.prize.currentCoins < item.price) return false;
+
+        PrizeManager.prize.currentCoins -= item.price;
+        PrizeManager.prize.spentCoins = (PrizeManager.prize.spentCoins || 0) + item.price;
+        PrizeManager.save();
+        PrizeManager.updateUI();
+
+        this.purchasedItems.push(itemId);
+        this.saveShopPurchases();
+        return true;
+    },
+
+    equipItem(itemId) {
+        const item = this.shopItems.find(i => i.id === itemId);
+        if (!item || !this.isItemPurchased(itemId)) return;
+        if (item.type === 'outfit') {
+            this.current.outfit = itemId;
+        } else {
+            this.current.accessory = itemId;
+        }
+        this.save();
+        this.renderAll();
     },
 
     load() {
@@ -417,6 +474,51 @@ const AvatarManager = {
                     <path d="M40 75 L38 72 H45 V75" fill="${color}" stroke="${darkerColor}" stroke-width="0.5" />
                     <path d="M60 75 L62 72 H55 V75" fill="${color}" stroke="${darkerColor}" stroke-width="0.5" />
                 </g>`;
+            default: break;
+        }
+
+        // Shop outfits
+        switch(this.current.outfit) {
+            case 'outfit-tanjiro':
+                return `<g class="avatar-body">
+                    <rect x="33" y="75" width="34" height="18" rx="4" fill="#2a5e3f"/>
+                    <rect x="33" y="75" width="8" height="18" fill="#1a1a1a" opacity="0.5"/>
+                    <rect x="43" y="75" width="8" height="18" fill="#1a1a1a" opacity="0.5"/>
+                    <rect x="53" y="75" width="8" height="18" fill="#1a1a1a" opacity="0.5"/>
+                    <path d="M33 80 L27 87" stroke="#2a5e3f" stroke-width="4"/>
+                    <path d="M67 80 L73 87" stroke="#2a5e3f" stroke-width="4"/>
+                    <path d="M42 75 L50 82 L58 75" fill="none" stroke="#8B0000" stroke-width="1.5"/>
+                </g>`;
+            case 'outfit-shinobu':
+                return `<g class="avatar-body">
+                    <rect x="33" y="75" width="34" height="18" rx="4" fill="#6b3fa0"/>
+                    <path d="M33 80 L27 87" stroke="#6b3fa0" stroke-width="4"/>
+                    <path d="M67 80 L73 87" stroke="#6b3fa0" stroke-width="4"/>
+                    <path d="M42 75 L50 82 L58 75" fill="none" stroke="#ff69b4" stroke-width="1.5"/>
+                    <path d="M40 85 Q44 82 48 85 Q52 82 56 85 Q60 82 64 85" fill="none" stroke="#da70d6" stroke-width="1" opacity="0.7"/>
+                    <ellipse cx="44" cy="80" rx="3" ry="2" fill="none" stroke="#ff69b4" stroke-width="0.8" opacity="0.5"/>
+                    <ellipse cx="56" cy="80" rx="3" ry="2" fill="none" stroke="#ff69b4" stroke-width="0.8" opacity="0.5"/>
+                </g>`;
+            case 'outfit-nahida':
+                return `<g class="avatar-body">
+                    <rect x="35" y="75" width="30" height="18" rx="5" fill="#f0f0e8"/>
+                    <path d="M35 80 L28 85 L30 90 L35 85" fill="#f0f0e8"/>
+                    <path d="M65 80 L72 85 L70 90 L65 85" fill="#f0f0e8"/>
+                    <path d="M38 88 Q50 95 62 88" fill="#4a8c5c" stroke="#3a7a4c" stroke-width="1"/>
+                    <path d="M45 80 Q50 78 55 80" stroke="#4a8c5c" stroke-width="1.5" fill="none"/>
+                    <circle cx="50" cy="78" r="2" fill="#7cfc00" opacity="0.6"/>
+                </g>`;
+            case 'outfit-muzan':
+                return `<g class="avatar-body">
+                    <rect x="33" y="75" width="34" height="18" rx="3" fill="#f8f8ff"/>
+                    <path d="M50 75 V93" stroke="#ddd" stroke-width="1"/>
+                    <path d="M45 75 L50 82 L55 75" fill="#1a1a2e"/>
+                    <rect x="48" y="82" width="4" height="3" fill="#8B0000"/>
+                    <path d="M33 75 L40 78 L33 85" fill="#e8e8f0"/>
+                    <path d="M67 75 L60 78 L67 85" fill="#e8e8f0"/>
+                    <path d="M33 80 L27 87" stroke="#f8f8ff" stroke-width="4"/>
+                    <path d="M67 80 L73 87" stroke="#f8f8ff" stroke-width="4"/>
+                </g>`;
             default: // tshirt
                 return `<g class="avatar-body">
                     <rect x="35" y="75" width="30" height="18" rx="5" fill="${color}" />
@@ -529,7 +631,67 @@ const AvatarManager = {
                         <animate attributeName="opacity" values="0.3;1;0.3" dur="1s" repeatCount="indefinite" />
                     </circle>
                 </g>`;
-            default: 
+            default: break;
+        }
+
+        // Shop accessories
+        switch(this.current.accessory) {
+            case 'acc-katana-tanjiro':
+                return `<g>
+                    <line x1="8" y1="25" x2="8" y2="95" stroke="#222" stroke-width="3"/>
+                    <line x1="8" y1="30" x2="8" y2="90" stroke="#333" stroke-width="2.5"/>
+                    <rect x="4" y="25" width="8" height="4" rx="1" fill="#8B0000"/>
+                    <rect x="3" y="22" width="10" height="3" rx="1" fill="#C0C0C0"/>
+                </g>`;
+            case 'acc-katana-shinobu':
+                return `<g>
+                    <line x1="92" y1="25" x2="92" y2="95" stroke="#7b3fa0" stroke-width="2.5"/>
+                    <line x1="92" y1="30" x2="92" y2="90" stroke="#9b59b6" stroke-width="2"/>
+                    <rect x="88" y="25" width="8" height="4" rx="1" fill="#ff69b4"/>
+                    <rect x="87" y="22" width="10" height="3" rx="1" fill="#C0C0C0"/>
+                    <path d="M89 50 Q92 48 95 50 Q92 52 89 50" fill="#da70d6" opacity="0.5"/>
+                    <path d="M89 65 Q92 63 95 65 Q92 67 89 65" fill="#da70d6" opacity="0.5"/>
+                </g>`;
+            case 'acc-nahida-magic':
+                return `<g>
+                    <circle cx="50" cy="12" r="8" fill="none" stroke="#7cfc00" stroke-width="1.5" opacity="0.7">
+                        <animate attributeName="r" values="7;9;7" dur="2s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="50" cy="12" r="4" fill="#7cfc00" opacity="0.3">
+                        <animate attributeName="opacity" values="0.2;0.5;0.2" dur="1.5s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="25" cy="35" r="3" fill="#7cfc00" opacity="0.4">
+                        <animate attributeName="opacity" values="0.2;0.6;0.2" dur="2s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="75" cy="35" r="3" fill="#7cfc00" opacity="0.4">
+                        <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite"/>
+                    </circle>
+                    <path d="M30 20 Q50 5 70 20" fill="none" stroke="#7cfc00" stroke-width="1" opacity="0.5">
+                        <animate attributeName="opacity" values="0.3;0.7;0.3" dur="3s" repeatCount="indefinite"/>
+                    </path>
+                </g>`;
+            case 'acc-muzan-magic':
+                return `<g>
+                    <circle cx="20" cy="40" r="4" fill="#8B0000" opacity="0.6">
+                        <animate attributeName="opacity" values="0.3;0.8;0.3" dur="1.5s" repeatCount="indefinite"/>
+                    </circle>
+                    <circle cx="80" cy="40" r="4" fill="#8B0000" opacity="0.6">
+                        <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+                    </circle>
+                    <path d="M15 55 Q20 50 25 55 Q20 60 15 55" fill="#8B0000" opacity="0.4">
+                        <animate attributeName="opacity" values="0.2;0.6;0.2" dur="2s" repeatCount="indefinite"/>
+                    </path>
+                    <path d="M75 55 Q80 50 85 55 Q80 60 75 55" fill="#8B0000" opacity="0.4">
+                        <animate attributeName="opacity" values="0.6;0.2;0.6" dur="2s" repeatCount="indefinite"/>
+                    </path>
+                    <path d="M10 70 Q15 65 20 70" fill="none" stroke="#8B0000" stroke-width="2" opacity="0.5">
+                        <animate attributeName="opacity" values="0.3;0.7;0.3" dur="2.5s" repeatCount="indefinite"/>
+                    </path>
+                    <path d="M80 70 Q85 65 90 70" fill="none" stroke="#8B0000" stroke-width="2" opacity="0.5">
+                        <animate attributeName="opacity" values="0.7;0.3;0.7" dur="2.5s" repeatCount="indefinite"/>
+                    </path>
+                </g>`;
+            default:
                 return '';
         }
     },
@@ -558,12 +720,26 @@ const AvatarManager = {
         const container = document.getElementById('avatar-editor-controls');
         if (!container) return;
 
+        const activeTab = container.dataset.activeTab || 'editor';
+
         let html = `
             <div class="avatar-preview-large avatar-display" data-size="150">
                 ${this.getSVG(150)}
             </div>
-            <div class="editor-groups">
+            <div class="avatar-tabs">
+                <button class="avatar-tab ${activeTab === 'editor' ? 'active' : ''}" data-tab="editor">Аватар</button>
+                <button class="avatar-tab ${activeTab === 'shop' ? 'active' : ''}" data-tab="shop">Магазин</button>
+            </div>
         `;
+
+        if (activeTab === 'shop') {
+            html += this.renderShop();
+            container.innerHTML = html;
+            this.setupShopListeners(container);
+            return;
+        }
+
+        html += `<div class="editor-groups">`;
 
         // Face Form
         html += this.createOptionGroup('Face Form', 'faceForm', this.parts.faceForm);
@@ -581,12 +757,16 @@ const AvatarManager = {
         html += this.createOptionGroup('Nose', 'noseType', this.parts.noseType);
         // Lips
         html += this.createOptionGroup('Lips', 'lipsType', this.parts.lipsType);
-        // Outfit
-        html += this.createOptionGroup('Outfit', 'outfit', this.parts.outfit);
-        // Outfit Color
-        html += this.createColorGroup('Outfit Color', 'outfitColor', this.colors.outfit);
-        // Accessory
-        html += this.createOptionGroup('Accessory', 'accessory', this.parts.accessory);
+        // Outfit (include purchased shop outfits)
+        const outfitOptions = [...this.parts.outfit, ...this.shopItems.filter(i => i.type === 'outfit' && this.isItemPurchased(i.id)).map(i => i.id)];
+        html += this.createOptionGroup('Outfit', 'outfit', outfitOptions);
+        // Outfit Color (hide for shop outfits)
+        if (!this.current.outfit.startsWith('outfit-')) {
+            html += this.createColorGroup('Outfit Color', 'outfitColor', this.colors.outfit);
+        }
+        // Accessory (include purchased shop accessories)
+        const accOptions = [...this.parts.accessory, ...this.shopItems.filter(i => i.type === 'accessory' && this.isItemPurchased(i.id)).map(i => i.id)];
+        html += this.createOptionGroup('Accessory', 'accessory', accOptions);
 
         html += `</div>`;
         container.innerHTML = html;
@@ -604,6 +784,92 @@ const AvatarManager = {
             el.addEventListener('click', (e) => {
                 this.current[e.target.dataset.prop] = e.target.dataset.color;
                 this.save();
+                this.renderEditor();
+            });
+        });
+
+        this.setupTabListeners(container);
+    },
+
+    setupTabListeners(container) {
+        container.querySelectorAll('.avatar-tab').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                container.dataset.activeTab = e.target.dataset.tab;
+                this.renderEditor();
+            });
+        });
+    },
+
+    renderShop() {
+        const coins = (typeof PrizeManager !== 'undefined' && PrizeManager.prize) ? PrizeManager.prize.currentCoins : 0;
+        const totalEarned = this.getTotalEarned();
+
+        let html = `
+            <div class="shop-balance">
+                <div class="shop-balance-current">
+                    ${typeof PrizeManager !== 'undefined' ? PrizeManager.getCoinSvg('shop-coin-icon') : ''}
+                    <span>${coins} монет</span>
+                </div>
+                <div class="shop-balance-total">Всего заработано: ${totalEarned}</div>
+            </div>
+            <div class="shop-items">
+        `;
+
+        this.shopItems.forEach(item => {
+            const owned = this.isItemPurchased(item.id);
+            const equipped = this.current.outfit === item.id || this.current.accessory === item.id;
+            const canAfford = coins >= item.price;
+            const typeLabel = item.type === 'outfit' ? 'Костюм' : 'Аксессуар';
+
+            let btnHtml;
+            if (equipped) {
+                btnHtml = `<button class="shop-item-btn equipped" disabled>Надето</button>`;
+            } else if (owned) {
+                btnHtml = `<button class="shop-item-btn equip" data-item-id="${item.id}">Надеть</button>`;
+            } else if (canAfford) {
+                btnHtml = `<button class="shop-item-btn buy" data-item-id="${item.id}">Купить</button>`;
+            } else {
+                btnHtml = `<button class="shop-item-btn cant-afford" disabled>${item.price} монет</button>`;
+            }
+
+            html += `
+                <div class="shop-item ${owned ? 'owned' : ''} ${equipped ? 'equipped' : ''}">
+                    <div class="shop-item-icon">${item.icon}</div>
+                    <div class="shop-item-info">
+                        <div class="shop-item-name">${item.name}</div>
+                        <div class="shop-item-meta">${typeLabel} · ${item.price} монет</div>
+                    </div>
+                    ${btnHtml}
+                </div>
+            `;
+        });
+
+        html += `</div>`;
+        return html;
+    },
+
+    getTotalEarned() {
+        if (typeof PrizeManager === 'undefined' || !PrizeManager.prize) return 0;
+        return (PrizeManager.prize.currentCoins || 0) + (PrizeManager.prize.spentCoins || 0);
+    },
+
+    setupShopListeners(container) {
+        this.setupTabListeners(container);
+
+        container.querySelectorAll('.shop-item-btn.buy').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const itemId = e.target.dataset.itemId;
+                if (this.buyItem(itemId)) {
+                    this.equipItem(itemId);
+                    this.renderEditor();
+                }
+            });
+        });
+
+        container.querySelectorAll('.shop-item-btn.equip').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const itemId = e.target.dataset.itemId;
+                this.equipItem(itemId);
                 this.renderEditor();
             });
         });
@@ -674,7 +940,16 @@ const AvatarManager = {
             'suit': '🤵 Suit',
             'tank-top': '🎽 Tank Top',
             'sweater': '🧶 Sweater',
-            'polo': '👔 Polo'
+            'polo': '👔 Polo',
+            // Shop items
+            'outfit-tanjiro': '⚔️ Танзиро',
+            'outfit-shinobu': '🦋 Шинобу',
+            'outfit-nahida': '🌿 Нахида',
+            'outfit-muzan': '🌙 Музан',
+            'acc-katana-tanjiro': '⚔️ Катана Танзиро',
+            'acc-katana-shinobu': '🗡️ Катана Шинобу',
+            'acc-nahida-magic': '✨ Магия Нахиды',
+            'acc-muzan-magic': '🩸 Магия Музана'
         };
         
         return `

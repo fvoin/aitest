@@ -110,7 +110,8 @@ class MathGameApp {
         localStorage.removeItem('math-game-avatar');
         localStorage.removeItem('mathGameHistory');
         localStorage.removeItem('mathGamePrize');
-        
+        localStorage.removeItem('mathGameShopPurchases');
+
         // Reload the page to start fresh
         window.location.reload();
     }

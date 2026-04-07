@@ -197,6 +197,8 @@ class PrizeManagerClass {
             const progress = Math.min((this.prize.currentCoins / this.prize.prizePrice) * 100, 100);
             const isComplete = this.isPrizeComplete();
             
+            const totalEarned = (this.prize.currentCoins || 0) + (this.prize.spentCoins || 0);
+
             prizeArea.innerHTML = `
                 <div id="prize-progress" class="prize-progress ${isComplete ? 'complete' : ''}" title="Click to edit prize">
                     <div class="prize-progress-header">
@@ -206,6 +208,7 @@ class PrizeManagerClass {
                     <div class="prize-bar">
                         <div class="prize-bar-fill" style="width: ${progress}%"></div>
                     </div>
+                    ${this.prize.spentCoins > 0 ? `<div class="prize-total-earned">Всего заработано: ${totalEarned} (потрачено в магазине: ${this.prize.spentCoins})</div>` : ''}
                     ${isComplete ? '<div class="prize-complete-text">🎉 Prize Ready! Tap to claim!</div>' : ''}
                 </div>
             `;
