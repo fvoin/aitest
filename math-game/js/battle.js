@@ -1112,7 +1112,8 @@ class BattleGameClass {
 
         this.boss = {
             x: bossX,
-            y: groundY - 180,
+            y: groundY + 50,
+            groundY: groundY,
             question: q,
             tentacles: tentacles,
             time: 0,
@@ -1201,8 +1202,106 @@ class BattleGameClass {
         if (!b) return;
         var ctx = this.ctx;
         var shake = b.shakeTimer > 0 ? (Math.random() - 0.5) * 6 : 0;
+        var waterY = b.groundY;
+        var waterBottom = this.H + 50;
 
-        // Draw tentacles
+        // ── Water behind everything ──
+        var wg = ctx.createLinearGradient(0, waterY, 0, waterBottom);
+        wg.addColorStop(0, 'rgba(30,100,200,0.55)');
+        wg.addColorStop(0.4, 'rgba(20,70,160,0.7)');
+        wg.addColorStop(1, 'rgba(10,40,100,0.85)');
+        ctx.fillStyle = wg;
+        ctx.fillRect(b.x - 350, waterY, 700, waterBottom - waterY);
+
+        // Animated wave line on water surface
+        ctx.save();
+        ctx.strokeStyle = 'rgba(150,210,255,0.6)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        var waveStart = b.x - 350;
+        ctx.moveTo(waveStart, waterY);
+        for (var wx = waveStart; wx <= b.x + 350; wx += 8) {
+            var wy = waterY + Math.sin((wx + b.time * 80) * 0.03) * 4
+                            + Math.sin((wx + b.time * 50) * 0.07) * 2;
+            ctx.lineTo(wx, wy);
+        }
+        ctx.stroke();
+        ctx.restore();
+
+        // ── Octopus body (in the water) ──
+        var bx = b.x + shake;
+        var by = b.y + Math.sin(b.time * 1.2) * 6;
+        var bodyR = 70;
+
+        // Body
+        ctx.fillStyle = '#6B2D8B';
+        ctx.beginPath(); ctx.ellipse(bx, by, bodyR, bodyR * 0.85, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#8B45A6';
+        ctx.beginPath(); ctx.ellipse(bx, by, bodyR * 0.85, bodyR * 0.7, 0, 0, Math.PI * 2); ctx.fill();
+
+        // Head / dome above eyes
+        ctx.fillStyle = '#7B35A0';
+        ctx.beginPath(); ctx.ellipse(bx, by - bodyR * 0.35, bodyR * 0.7, bodyR * 0.45, 0, Math.PI, Math.PI * 2); ctx.fill();
+
+        // Eyes
+        var wrongAlive = b.tentacles.filter(function(tt) { return tt.alive && !tt.isCorrect; }).length;
+        var eyeOffY = b.defeated ? 5 : 0;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.ellipse(bx - 24, by - 10 + eyeOffY, 18, 20, 0, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(bx + 24, by - 10 + eyeOffY, 18, 20, 0, 0, Math.PI * 2); ctx.fill();
+        // Pupils — track player
+        var pupilX = 0, pupilY = 0;
+        if (this.player) {
+            var dx = (this.player.x + this.player.w / 2) - bx;
+            var dy = (this.player.y + this.player.h / 2) - by;
+            var dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            pupilX = (dx / dist) * 7;
+            pupilY = (dy / dist) * 5;
+        }
+        ctx.fillStyle = b.defeated ? '#999' : (wrongAlive <= 1 ? '#ff3300' : '#1a1a2e');
+        ctx.beginPath(); ctx.arc(bx - 24 + pupilX, by - 10 + pupilY + eyeOffY, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + 24 + pupilX, by - 10 + pupilY + eyeOffY, 9, 0, Math.PI * 2); ctx.fill();
+        // Highlight
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.beginPath(); ctx.arc(bx - 28, by - 16 + eyeOffY, 4, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx + 20, by - 16 + eyeOffY, 4, 0, Math.PI * 2); ctx.fill();
+
+        // Mouth
+        if (b.defeated) {
+            ctx.strokeStyle = '#4a2060'; ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(bx - 15, by + 22);
+            ctx.quadraticCurveTo(bx, by + 14, bx + 15, by + 22);
+            ctx.stroke();
+        } else if (wrongAlive <= 1) {
+            ctx.fillStyle = '#ff3300';
+            ctx.beginPath();
+            ctx.moveTo(bx - 12, by + 15);
+            ctx.quadraticCurveTo(bx, by + 28, bx + 12, by + 15);
+            ctx.closePath(); ctx.fill();
+        } else {
+            ctx.fillStyle = '#4a2060';
+            ctx.beginPath(); ctx.ellipse(bx, by + 18, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
+        }
+
+        // Defeated X overlay
+        if (b.defeated) {
+            ctx.save(); ctx.globalAlpha = 0.7;
+            ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(bx - 40, by - 40); ctx.lineTo(bx + 40, by + 40);
+            ctx.moveTo(bx + 40, by - 40); ctx.lineTo(bx - 40, by + 40);
+            ctx.stroke(); ctx.restore();
+        }
+
+        // ── Water overlay on top of octopus body (semi-transparent) ──
+        ctx.save();
+        ctx.globalAlpha = 0.3;
+        ctx.fillStyle = 'rgba(20,80,180,1)';
+        ctx.fillRect(b.x - 350, waterY, 700, waterBottom - waterY);
+        ctx.restore();
+
+        // ── Tentacles (rise from water) ──
         for (var i = 0; i < b.tentacles.length; i++) {
             var t = b.tentacles[i];
             if (!t.alive) continue;
@@ -1211,23 +1310,21 @@ class BattleGameClass {
             var baseY = t.baseY;
             var topY  = baseY - t.height;
 
-            // Tentacle body — thick wavy line with suckers
             ctx.save();
             ctx.lineWidth = 22;
             ctx.lineCap = 'round';
             ctx.strokeStyle = '#7B3FA0';
             ctx.beginPath();
-            ctx.moveTo(t.x, baseY);
+            ctx.moveTo(t.x, baseY + 30);
             var cp1x = t.x + sway * 0.3, cp1y = baseY - t.height * 0.33;
             var cp2x = baseX + sway * 0.7, cp2y = baseY - t.height * 0.66;
             ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, baseX, topY);
             ctx.stroke();
 
-            // Inner lighter line
             ctx.lineWidth = 12;
             ctx.strokeStyle = '#9B59B6';
             ctx.beginPath();
-            ctx.moveTo(t.x, baseY);
+            ctx.moveTo(t.x, baseY + 30);
             ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, baseX, topY);
             ctx.stroke();
 
@@ -1245,7 +1342,7 @@ class BattleGameClass {
             ctx.beginPath(); ctx.arc(baseX, topY, 10, 0, Math.PI * 2); ctx.fill();
             ctx.restore();
 
-            // Answer label on tentacle
+            // Answer label
             var ans = String(t.answer);
             ctx.font = 'bold 18px Arial';
             var tw2 = ctx.measureText(ans).width;
@@ -1257,81 +1354,13 @@ class BattleGameClass {
             ctx.fillText(ans, baseX, ly + lh - 7);
         }
 
-        // Draw octopus body
-        var bx = b.x + shake;
-        var by = b.y + Math.sin(b.time * 1.2) * 8;
-        var bodyR = 65;
-
-        // Body
-        ctx.fillStyle = '#6B2D8B';
-        ctx.beginPath(); ctx.ellipse(bx, by, bodyR, bodyR * 0.85, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#8B45A6';
-        ctx.beginPath(); ctx.ellipse(bx, by, bodyR * 0.85, bodyR * 0.7, 0, 0, Math.PI * 2); ctx.fill();
-
-        // Eyes
-        var wrongAlive = b.tentacles.filter(function(tt) { return tt.alive && !tt.isCorrect; }).length;
-        var eyeOffY = b.defeated ? 5 : 0;
-        // Left eye
-        ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.ellipse(bx - 22, by - 8 + eyeOffY, 18, 20, 0, 0, Math.PI * 2); ctx.fill();
-        // Right eye
-        ctx.beginPath(); ctx.ellipse(bx + 22, by - 8 + eyeOffY, 18, 20, 0, 0, Math.PI * 2); ctx.fill();
-        // Pupils — track player
-        var pupilX = 0, pupilY = 0;
-        if (this.player) {
-            var dx = (this.player.x + this.player.w / 2) - bx;
-            var dy = (this.player.y + this.player.h / 2) - by;
-            var dist = Math.sqrt(dx * dx + dy * dy) || 1;
-            pupilX = (dx / dist) * 6;
-            pupilY = (dy / dist) * 6;
-        }
-        ctx.fillStyle = b.defeated ? '#999' : (wrongAlive <= 1 ? '#ff3300' : '#1a1a2e');
-        ctx.beginPath(); ctx.arc(bx - 22 + pupilX, by - 8 + pupilY + eyeOffY, 8, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(bx + 22 + pupilX, by - 8 + pupilY + eyeOffY, 8, 0, Math.PI * 2); ctx.fill();
-        // Highlight
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.beginPath(); ctx.arc(bx - 25, by - 14 + eyeOffY, 4, 0, Math.PI * 2); ctx.fill();
-        ctx.beginPath(); ctx.arc(bx + 19, by - 14 + eyeOffY, 4, 0, Math.PI * 2); ctx.fill();
-
-        // Mouth
-        if (b.defeated) {
-            ctx.strokeStyle = '#4a2060';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(bx - 15, by + 25);
-            ctx.quadraticCurveTo(bx, by + 15, bx + 15, by + 25);
-            ctx.stroke();
-        } else if (wrongAlive <= 1) {
-            // Angry mouth
-            ctx.fillStyle = '#ff3300';
-            ctx.beginPath();
-            ctx.moveTo(bx - 12, by + 18);
-            ctx.quadraticCurveTo(bx, by + 30, bx + 12, by + 18);
-            ctx.closePath(); ctx.fill();
-        } else {
-            ctx.fillStyle = '#4a2060';
-            ctx.beginPath(); ctx.ellipse(bx, by + 22, 10, 7, 0, 0, Math.PI * 2); ctx.fill();
-        }
-
-        // Defeated X overlay
-        if (b.defeated) {
-            ctx.save();
-            ctx.globalAlpha = 0.7;
-            ctx.strokeStyle = '#ff3300'; ctx.lineWidth = 8;
-            ctx.beginPath();
-            ctx.moveTo(bx - 40, by - 40); ctx.lineTo(bx + 40, by + 40);
-            ctx.moveTo(bx + 40, by - 40); ctx.lineTo(bx - 40, by + 40);
-            ctx.stroke();
-            ctx.restore();
-        }
-
-        // Question above boss
+        // ── Question bubble above water ──
         if (!b.defeated) {
             var qText = b.question.text;
             ctx.font = 'bold 24px Arial';
             var qtw = ctx.measureText(qText).width;
             var qbw = qtw + 30, qbh = 40;
-            var qbx = bx - qbw / 2, qby = by - bodyR - qbh - 15;
+            var qbx = bx - qbw / 2, qby = waterY - qbh - 20;
             ctx.fillStyle = 'rgba(255,255,255,0.96)';
             ctx.strokeStyle = '#8B45A6'; ctx.lineWidth = 3;
             bRR(ctx, qbx, qby, qbw, qbh, 12); ctx.fill(); ctx.stroke();
