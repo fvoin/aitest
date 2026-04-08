@@ -646,7 +646,7 @@ const AvatarManager = {
         // Shop accessories
         switch(this.current.accessory) {
             case 'acc-katana-tanjiro':
-                return `<g transform="translate(75,90) rotate(-30) scale(-1,1)">
+                return `<g transform="translate(75,90) rotate(30)">
                     <rect x="-1.5" y="-40" width="3" height="35" rx="0.5" fill="#333"/>
                     <rect x="-1" y="-42" width="2" height="3" fill="#C0C0C0"/>
                     <rect x="-3" y="-5" width="6" height="3" rx="1" fill="#C0C0C0"/>
@@ -654,7 +654,7 @@ const AvatarManager = {
                     <path d="M-1.5 -2 L-1.5 6 M1.5 -2 L1.5 6" stroke="#222" stroke-width="0.5" opacity="0.4"/>
                 </g>`;
             case 'acc-katana-shinobu':
-                return `<g transform="translate(25,90) rotate(30) scale(-1,1)">
+                return `<g transform="translate(25,90) rotate(-30)">
                     <rect x="-1.5" y="-40" width="3" height="35" rx="0.5" fill="#9b59b6"/>
                     <rect x="-1" y="-42" width="2" height="3" fill="#C0C0C0"/>
                     <rect x="-3" y="-5" width="6" height="3" rx="1" fill="#C0C0C0"/>
