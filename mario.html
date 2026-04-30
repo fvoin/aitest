@@ -97,6 +97,198 @@ document.addEventListener('fullscreenchange', () => {
 // ─────────────────────────────────────────
 let state = {};
 
+// ─────────────────────────────────────────
+//  Gaming News Speech Bubble
+// ─────────────────────────────────────────
+const BUBBLE_FADE  = 20;   // ticks for fade in/out (~0.33s)
+const BUBBLE_SHOW  = 240;  // ticks to display headline (~4s)
+const BUBBLE_PAUSE = 60;   // ticks between headlines (~1s)
+
+const newsData = {
+  headlines: [],
+  currentIndex: 0,
+  bubble: {
+    text: '',
+    alpha: 0,
+    phase: 'hidden', // 'hidden' | 'fadein' | 'show' | 'fadeout'
+    phaseTimer: 90,  // start first headline after ~1.5s
+  },
+};
+
+async function fetchGamingNews() {
+  try {
+    const res = await fetch(
+      'https://www.reddit.com/r/gaming/hot.json?limit=25&raw_json=1',
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    newsData.headlines = data.data.children
+      .filter(p => !p.data.stickied && p.data.title)
+      .map(p => p.data.title)
+      .slice(0, 15);
+  } catch (_) {
+    newsData.headlines = [
+      'GTA VI is officially coming in 2025!',
+      'Nintendo Direct reveals new Switch titles',
+      'Elden Ring DLC shatters sales records',
+      'Xbox Game Pass hits 40 million subscribers',
+      'PlayStation 6 specs reportedly leaked online',
+      'Balatro wins Game of the Year at BAFTA 2025',
+      'Minecraft celebrates 15 years with huge update',
+    ];
+  }
+}
+
+function updateNewsBubble() {
+  if (state.mode !== 'play' || newsData.headlines.length === 0) return;
+  const b = newsData.bubble;
+
+  if (b.phase === 'hidden') {
+    b.phaseTimer--;
+    if (b.phaseTimer <= 0) {
+      b.text = newsData.headlines[newsData.currentIndex % newsData.headlines.length];
+      newsData.currentIndex++;
+      b.phase = 'fadein';
+      b.phaseTimer = BUBBLE_FADE;
+    }
+  } else if (b.phase === 'fadein') {
+    b.alpha = 1 - b.phaseTimer / BUBBLE_FADE;
+    b.phaseTimer--;
+    if (b.phaseTimer <= 0) { b.alpha = 1; b.phase = 'show'; b.phaseTimer = BUBBLE_SHOW; }
+  } else if (b.phase === 'show') {
+    b.phaseTimer--;
+    if (b.phaseTimer <= 0) { b.phase = 'fadeout'; b.phaseTimer = BUBBLE_FADE; }
+  } else if (b.phase === 'fadeout') {
+    b.alpha = b.phaseTimer / BUBBLE_FADE;
+    b.phaseTimer--;
+    if (b.phaseTimer <= 0) { b.alpha = 0; b.phase = 'hidden'; b.phaseTimer = BUBBLE_PAUSE; }
+  }
+}
+
+function wrapNewsText(text, ctx, maxWidth) {
+  const words = text.split(' ');
+  const lines = [];
+  let current = '';
+  for (const word of words) {
+    const candidate = current ? current + ' ' + word : word;
+    if (ctx.measureText(candidate).width <= maxWidth) {
+      current = candidate;
+    } else {
+      if (current) lines.push(current);
+      current = word;
+      if (lines.length >= 2) {
+        // truncate last line with ellipsis
+        while (ctx.measureText(current + '…').width > maxWidth && current.length > 1) {
+          current = current.slice(0, -1);
+        }
+        current += '…';
+        break;
+      }
+    }
+  }
+  if (current) lines.push(current);
+  return lines.slice(0, 3);
+}
+
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.lineTo(x + w - r, y);
+  c.arcTo(x + w, y,     x + w, y + r,     r);
+  c.lineTo(x + w, y + h - r);
+  c.arcTo(x + w, y + h, x + w - r, y + h, r);
+  c.lineTo(x + r, y + h);
+  c.arcTo(x, y + h,     x, y + h - r,     r);
+  c.lineTo(x, y + r);
+  c.arcTo(x, y,         x + r, y,         r);
+  c.closePath();
+}
+
+function drawSpeechBubble(p, cam) {
+  const b = newsData.bubble;
+  if (b.phase === 'hidden' || b.alpha <= 0 || !b.text) return;
+
+  const padding  = 10;
+  const fontSize = 12;
+  const labelH   = 16;
+  const maxTextW = 280;
+
+  ctx.save();
+  ctx.font = `${fontSize}px monospace`;
+
+  const lines = wrapNewsText(b.text, ctx, maxTextW);
+  const lineH  = fontSize + 5;
+  const textW  = Math.max(...lines.map(l => ctx.measureText(l).width));
+  const bw     = textW + padding * 2;
+  const bh     = labelH + padding + lines.length * lineH + padding;
+
+  const marioScreenX = p.x - cam + p.w / 2;
+  const marioScreenY = p.y;
+
+  let bx = marioScreenX - bw / 2;
+  let by = marioScreenY - bh - 20;
+  bx = Math.max(6, Math.min(W - bw - 6, bx));
+  by = Math.max(44, by);
+
+  ctx.globalAlpha = b.alpha;
+
+  // Drop shadow
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  roundRect(ctx, bx + 3, by + 3, bw, bh, 9);
+  ctx.fill();
+
+  // Bubble body
+  ctx.fillStyle = '#fffde7';
+  roundRect(ctx, bx, by, bw, bh, 9);
+  ctx.fill();
+  ctx.strokeStyle = '#c8a000';
+  ctx.lineWidth = 2;
+  roundRect(ctx, bx, by, bw, bh, 9);
+  ctx.stroke();
+
+  // Pointer triangle
+  const tipX = Math.max(bx + 14, Math.min(bx + bw - 14, marioScreenX));
+  ctx.fillStyle = '#fffde7';
+  ctx.beginPath();
+  ctx.moveTo(tipX - 9, by + bh);
+  ctx.lineTo(tipX + 9, by + bh);
+  ctx.lineTo(tipX, by + bh + 16);
+  ctx.closePath();
+  ctx.fill();
+  // Pointer border (sides only)
+  ctx.strokeStyle = '#c8a000';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(tipX - 9, by + bh + 1);
+  ctx.lineTo(tipX, by + bh + 16);
+  ctx.lineTo(tipX + 9, by + bh + 1);
+  ctx.stroke();
+
+  // Label bar
+  ctx.fillStyle = '#ff6f00';
+  roundRect(ctx, bx, by, bw, labelH, 9);
+  ctx.fill();
+  // Flatten bottom corners of label
+  ctx.fillRect(bx, by + labelH / 2, bw, labelH / 2);
+
+  ctx.font = 'bold 10px monospace';
+  ctx.fillStyle = '#fff';
+  ctx.textAlign = 'center';
+  ctx.fillText('🎮 GAMING NEWS', bx + bw / 2, by + 11);
+
+  // Headline lines
+  ctx.font = `${fontSize}px monospace`;
+  ctx.fillStyle = '#1a1a1a';
+  ctx.textAlign = 'left';
+  lines.forEach((line, i) => {
+    ctx.fillText(line, bx + padding, by + labelH + padding + fontSize + i * lineH);
+  });
+
+  ctx.textAlign = 'left';
+  ctx.restore();
+}
+
 function buildLevel() {
   const ground = [];
   // full ground row
@@ -379,6 +571,9 @@ function update(dt) {
     pt.life--;
   }
   state.particles = state.particles.filter(pt => pt.life > 0);
+
+  // News bubble tick
+  updateNewsBubble();
 
   // Win: all coins collected
   if (state.coins.every(c => !c.alive)) {
@@ -848,6 +1043,7 @@ function render() {
   drawBlasts(cam);
 
   drawMario(state.player, cam);
+  drawSpeechBubble(state.player, cam);
   drawParticles(cam);
   drawHUD();
 }
@@ -864,6 +1060,9 @@ function loop(ts) {
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(ts => { lastTime = ts; requestAnimationFrame(loop); });
+
+// Fetch real gaming news immediately on page load
+fetchGamingNews();
 
 // ─────────────────────────────────────────
 //  Debug / automation hooks
